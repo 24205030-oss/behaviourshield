@@ -61,9 +61,9 @@ def extract_features(txn: dict) -> list:
     is_very_high_amount = 1 if amount > 15000 else 0
 
     return [
-        amount / 20000.0,           # normalised amount
-        hour / 23.0,                 # normalised hour
-        velocity / 10.0,             # normalised velocity
+        amount / 20000.0,
+        hour / 23.0,
+        velocity / 10.0,
         typing_speed,
         location_jump,
         is_high_risk_merchant,
@@ -85,22 +85,15 @@ def train_ml_model():
 
     training_samples = []
     for _ in range(1000):
-        # Normal transactions (majority)
         training_samples.append([
             random.uniform(10, 3000) / 20000.0,
             random.randint(8, 22) / 23.0,
             random.randint(1, 3) / 10.0,
             random.uniform(0.8, 2.0),
-            0,
-            0,
-            0,
-            0,
-            0,
-            0,
+            0, 0, 0, 0, 0, 0,
         ])
 
     for _ in range(150):
-        # Anomalous / fraud-like transactions (minority)
         training_samples.append([
             random.uniform(8000, 20000) / 20000.0,
             random.randint(2, 5) / 23.0,
@@ -109,8 +102,7 @@ def train_ml_model():
             1,
             random.choice([0, 1]),
             random.choice([0, 1]),
-            1,
-            1,
+            1, 1,
             random.choice([0, 1]),
         ])
 
@@ -138,13 +130,10 @@ def ml_score(txn: dict) -> dict:
     X = np.array([features])
     X_scaled = ml_scaler.transform(X)
 
-    prediction = ml_model.predict(X_scaled)[0]       # 1 = normal, -1 = anomaly
-    raw_score = ml_model.decision_function(X_scaled)[0]  # more negative = more anomalous
+    prediction = ml_model.predict(X_scaled)[0]
+    raw_score = ml_model.decision_function(X_scaled)[0]
 
-    # Convert to 0-100 risk score (higher = riskier)
-    # decision_function typically ranges from ~ -0.5 to +0.5
     normalised = max(0, min(100, int((0.5 - raw_score) * 100)))
-
     label = "ANOMALY" if prediction == -1 else "NORMAL"
     confidence = min(100, int(abs(raw_score) * 200))
 
@@ -221,7 +210,6 @@ def combined_verdict(rule_score: int, ml_result: dict) -> dict:
     ml_s = ml_result.get("ml_score")
 
     if ml_s is not None:
-        # Weighted: 60% rules, 40% ML
         final_score = int(rule_score * 0.6 + ml_s * 0.4)
     else:
         final_score = rule_score
@@ -234,6 +222,24 @@ def combined_verdict(rule_score: int, ml_result: dict) -> dict:
         verdict = "ALLOW"
 
     return {"final_score": final_score, "verdict": verdict}
+
+
+def _build_txn_result(txn: dict) -> dict:
+    """Shared helper: run rule + ML engines on a transaction dict."""
+    rule_s, signals = rule_based_score(txn)
+    ml_result = ml_score(txn)
+    verdict_data = combined_verdict(rule_s, ml_result)
+
+    result = {
+        "verdict": verdict_data["verdict"],
+        "final_score": verdict_data["final_score"],
+        "rule_score": rule_s,
+        "signals": signals,
+        "ml_result": ml_result,
+        "timestamp": datetime.now().isoformat()
+    }
+    _log_transaction(txn, result)
+    return result
 
 
 # ── Flask routes ─────────────────────────────────────────────────────────────
@@ -278,23 +284,11 @@ def analyze():
     ip_transaction_times[ip].append(now)
     data["velocity"] = len(ip_transaction_times[ip])
 
-    rule_s, signals = rule_based_score(data)
-    ml_result = ml_score(data)
-    verdict_data = combined_verdict(rule_s, ml_result)
+    result = _build_txn_result(data)
 
-    result = {
-        "verdict": verdict_data["verdict"],
-        "final_score": verdict_data["final_score"],
-        "rule_score": rule_s,
-        "signals": signals,
-        "ml_result": ml_result,
-        "timestamp": datetime.now().isoformat()
-    }
-
-    if verdict_data["verdict"] == "BLOCK":
+    if result["verdict"] == "BLOCK":
         ip_last_blocked[ip] = now
 
-    _log_transaction(data, result)
     return jsonify(result)
 
 
@@ -309,36 +303,59 @@ def get_stats():
     return jsonify({**stats, "fraud_rate": fraud_rate, "ml_ready": ML_TRAINED})
 
 
+# ── FIX: /api/stream AND /api/simulate both work ────────────────────────────
 @app.route("/api/stream")
+@app.route("/api/simulate")
 def stream_transaction():
-    """Generate a random transaction and analyze it (for auto-simulation)."""
+    """Generate a random transaction and analyze it (for auto-simulation).
+    Accessible as both /api/stream and /api/simulate.
+    """
     now = datetime.now()
     txn = {
-        "amount": round(random.uniform(10, 18000), 2),
-        "merchant": random.choice(MERCHANTS),
-        "location": random.choice(LOCATIONS),
-        "hour": now.hour,
-        "velocity": random.randint(1, 8),
-        "typing_speed": round(random.uniform(0.1, 4.0), 2),
-        "location_jump": random.choices([0, 1], weights=[75, 25])[0],
+        "amount":             round(random.uniform(10, 18000), 2),
+        "merchant":           random.choice(MERCHANTS),
+        "location":           random.choice(LOCATIONS),
+        "hour":               now.hour,
+        "velocity":           random.randint(1, 8),
+        "typing_speed":       round(random.uniform(0.1, 4.0), 2),
+        "location_jump":      random.choices([0, 1], weights=[75, 25])[0],
         "device_fingerprint": random.choice(["known", "known", "new"]),
-        "multiple_declines": random.choices([False, True], weights=[85, 15])[0],
+        "multiple_declines":  random.choices([False, True], weights=[85, 15])[0],
     }
-    rule_s, signals = rule_based_score(txn)
-    ml_result = ml_score(txn)
-    verdict_data = combined_verdict(rule_s, ml_result)
 
-    result = {
-        **txn,
-        "verdict": verdict_data["verdict"],
-        "final_score": verdict_data["final_score"],
-        "rule_score": rule_s,
-        "signals": signals,
-        "ml_result": ml_result,
-        "timestamp": now.isoformat()
-    }
-    _log_transaction(txn, result)
-    return jsonify(result)
+    result = _build_txn_result(txn)
+    return jsonify({**txn, **result})
+
+
+# ── /api/simulate/bulk — burst endpoint ─────────────────────────────────────
+@app.route("/api/simulate/bulk", methods=["POST"])
+def simulate_bulk():
+    """Generate N transactions at once for the burst button."""
+    body  = request.get_json(force=True) or {}
+    count = min(int(body.get("count", 10)), 50)   # cap at 50
+
+    now = datetime.now()
+    results = []
+    for _ in range(count):
+        txn = {
+            "amount":             round(random.uniform(10, 18000), 2),
+            "merchant":           random.choice(MERCHANTS),
+            "location":           random.choice(LOCATIONS),
+            "hour":               now.hour,
+            "velocity":           random.randint(1, 8),
+            "typing_speed":       round(random.uniform(0.1, 4.0), 2),
+            "location_jump":      random.choices([0, 1], weights=[75, 25])[0],
+            "device_fingerprint": random.choice(["known", "known", "new"]),
+            "multiple_declines":  random.choices([False, True], weights=[85, 15])[0],
+        }
+        result = _build_txn_result(txn)
+        results.append({
+            "transaction": txn,
+            "result":      result,
+            "timestamp":   result["timestamp"]
+        })
+
+    return jsonify({"transactions": results, "count": len(results)})
 
 
 def _log_transaction(txn: dict, result: dict):
@@ -352,24 +369,24 @@ def _log_transaction(txn: dict, result: dict):
         stats["allowed"] += 1
 
     entry = {
-        "id": stats["total"],
-        "amount": txn.get("amount"),
-        "merchant": txn.get("merchant"),
-        "location": txn.get("location"),
-        "verdict": v,
+        "id":         stats["total"],
+        "amount":     txn.get("amount"),
+        "merchant":   txn.get("merchant"),
+        "location":   txn.get("location"),
+        "verdict":    v,
         "final_score": result.get("final_score"),
         "rule_score": result.get("rule_score"),
-        "ml_score": result.get("ml_result", {}).get("ml_score"),
-        "ml_label": result.get("ml_result", {}).get("ml_label"),
-        "signals": result.get("signals", []),
-        "timestamp": result.get("timestamp")
+        "ml_score":   result.get("ml_result", {}).get("ml_score"),
+        "ml_label":   result.get("ml_result", {}).get("ml_label"),
+        "signals":    result.get("signals", []),
+        "timestamp":  result.get("timestamp")
     }
     transaction_log.append(entry)
     if len(transaction_log) > 200:
         transaction_log.pop(0)
 
 
-# ── Minimal built-in UI (fallback — judges should use index.html) ─────────────
+# ── Minimal built-in UI ───────────────────────────────────────────────────────
 BUILT_IN_UI = """
 <!DOCTYPE html><html><head><title>BehaviorShield API</title>
 <style>body{font-family:monospace;background:#0a0a0a;color:#00ff88;padding:40px}
@@ -384,6 +401,8 @@ h1{color:#00ffcc}a{color:#00aaff}</style></head><body>
 <li><a href="/api/log">/api/log</a> — last 50 transactions</li>
 <li>/api/analyze (POST) — analyze a transaction</li>
 <li><a href="/api/stream">/api/stream</a> — simulate one random transaction</li>
+<li><a href="/api/simulate">/api/simulate</a> — alias for /api/stream (fixes 404)</li>
+<li>/api/simulate/bulk (POST) — burst simulate N transactions</li>
 </ul>
 <script>
 fetch('/api/health').then(r=>r.json()).then(d=>{
@@ -397,7 +416,7 @@ if __name__ == "__main__":
     if ML_AVAILABLE:
         t = threading.Thread(target=train_ml_model, daemon=True)
         t.start()
-        t.join()  # wait for training before serving
+        t.join()
     else:
         print("⚠️  Running WITHOUT ML — install scikit-learn for full functionality")
 
