@@ -1,380 +1,362 @@
 from flask import Flask, request, jsonify, render_template_string
 from flask_cors import CORS
-from datetime import datetime
+import time
 import json
-import os
 
 app = Flask(__name__)
 CORS(app)
 
-# ─────────────────────────────────────────────────────────────
-#  SIGNAL WEIGHTS  (tweak these to adjust sensitivity)
-# ─────────────────────────────────────────────────────────────
-SIGNAL_WEIGHTS = {
-    "new_beneficiary":    30,
-    "large_amount":       20,   # > 50,000
-    "very_large_amount":  10,   # > 1,00,000 (extra on top)
-    "fast_typing":        15,
-    "copy_paste":         20,
-    "app_switching":      20,
-    "otp_retry":          15,
-    "late_night":         10,   # auto-detected 1am–5am
-    "screen_sharing":     25,
-}
+# --- In-memory log store (no DB needed for hackathon) ---
+transaction_log = []
+blocked_ips = {}  # ip -> timestamp of last block (30-sec cooldown)
 
-LOG_FILE = "transactions.json"
-
-
-# ─────────────────────────────────────────────────────────────
+# ─────────────────────────────────────────
 #  CORE RISK ENGINE
-# ─────────────────────────────────────────────────────────────
-def compute_risk(data: dict) -> dict:
-    score     = 0
-    triggered = []
-    amount    = data.get("amount", 0)
-    hour      = datetime.now().hour
+# ─────────────────────────────────────────
+def compute_risk(data):
+    score = 0
+    reasons = []
 
-    # — Transaction signals —
-    if data.get("new_beneficiary"):
-        score += SIGNAL_WEIGHTS["new_beneficiary"]
-        triggered.append("new_beneficiary")
+    amount = data.get("amount", 0)
+    new_beneficiary   = data.get("new_beneficiary", False)
+    copy_paste        = data.get("copy_paste", False)
+    otp_retry         = data.get("otp_retry", False)
+    screen_sharing    = data.get("screen_sharing", False)
+    app_switching     = data.get("app_switching", False)
+    typing_speed_wpm  = data.get("typing_speed_wpm", 40)
+    location_jump_km  = data.get("location_jump_km", 0)
+    txn_velocity      = data.get("txn_velocity", 1)   # txns in last 2 min
+    unusual_hour      = data.get("unusual_hour", False)
 
-    if amount > 50_000:
-        score += SIGNAL_WEIGHTS["large_amount"]
-        triggered.append("large_amount")
+    # --- Amount thresholds ---
+    if amount > 100000:
+        score += 25
+        reasons.append("Very high transaction amount (>₹1L)")
+    elif amount > 50000:
+        score += 15
+        reasons.append("High transaction amount (>₹50K)")
+    elif amount > 10000:
+        score += 5
 
-    if amount > 1_00_000:
-        score += SIGNAL_WEIGHTS["very_large_amount"]
-        triggered.append("very_large_amount")
+    # --- Behavioural signals ---
+    if new_beneficiary:
+        score += 20
+        reasons.append("New / unverified beneficiary")
 
-    # — Behavioral signals —
-    if data.get("fast_typing"):
-        score += SIGNAL_WEIGHTS["fast_typing"]
-        triggered.append("fast_typing")
+    if copy_paste:
+        score += 15
+        reasons.append("Account number pasted — not typed manually")
 
-    if data.get("copy_paste"):
-        score += SIGNAL_WEIGHTS["copy_paste"]
-        triggered.append("copy_paste")
+    if otp_retry:
+        score += 15
+        reasons.append("Multiple OTP retries detected")
 
-    if data.get("app_switching"):
-        score += SIGNAL_WEIGHTS["app_switching"]
-        triggered.append("app_switching")
+    if screen_sharing:
+        score += 25
+        reasons.append("Screen-sharing app active during transaction")
 
-    if data.get("otp_retry"):
-        score += SIGNAL_WEIGHTS["otp_retry"]
-        triggered.append("otp_retry")
+    if app_switching:
+        score += 10
+        reasons.append("Rapid app-switching detected")
 
-    if data.get("screen_sharing"):
-        score += SIGNAL_WEIGHTS["screen_sharing"]
-        triggered.append("screen_sharing")
+    # --- Typing speed (too fast = bot / dictated) ---
+    if typing_speed_wpm > 120:
+        score += 15
+        reasons.append("Abnormally fast typing — possible dictation/bot")
 
-    # — Context signals (auto-detected) —
-    if 1 <= hour <= 5:
-        score += SIGNAL_WEIGHTS["late_night"]
-        triggered.append("late_night")
+    # --- Location jump ---
+    if location_jump_km > 500:
+        score += 20
+        reasons.append(f"Impossible location jump ({location_jump_km} km)")
+    elif location_jump_km > 100:
+        score += 10
+        reasons.append(f"Unusual location change ({location_jump_km} km)")
 
+    # --- Transaction velocity ---
+    if txn_velocity >= 5:
+        score += 20
+        reasons.append(f"{txn_velocity} transactions in last 2 minutes")
+    elif txn_velocity >= 3:
+        score += 10
+        reasons.append(f"{txn_velocity} transactions in last 2 minutes")
+
+    # --- Unusual hour ---
+    if unusual_hour:
+        score += 5
+        reasons.append("Transaction at unusual hour (2 AM–5 AM)")
+
+    # Cap at 100
     score = min(score, 100)
 
-    # — Verdict —
-    if score < 30:
-        verdict = "safe"
-        action  = "ALLOW"
-        message = "Transaction approved. No suspicious signals detected."
-        cooldown_seconds = 0
-    elif score < 65:
-        verdict = "warning"
-        action  = "WARN"
-        message = ("Warning: Are you on a call with someone asking you "
-                   "to transfer money? Please verify before continuing.")
-        cooldown_seconds = 0
-    else:
+    # --- Verdict ---
+    if score >= 70:
         verdict = "blocked"
         action  = "BLOCK"
-        message = ("Transaction blocked. High manipulation risk detected. "
-                   "A 30-second cooldown has been applied. "
-                   "Did someone ask you to do this urgently?")
-        cooldown_seconds = 30
+        message = (
+            "Transaction BLOCKED. High manipulation risk detected. "
+            "A bank agent will contact you within 5 minutes."
+        )
+    elif score >= 40:
+        verdict = "warned"
+        action  = "WARN"
+        message = (
+            "Suspicious activity detected. Please verify this transaction "
+            "by answering the chatbot question before proceeding."
+        )
+    else:
+        verdict = "allowed"
+        action  = "ALLOW"
+        message = "Transaction approved. No suspicious behaviour detected."
 
     return {
-        "score":            score,
-        "verdict":          verdict,
-        "action":           action,
-        "message":          message,
-        "triggered":        triggered,
-        "cooldown_seconds": cooldown_seconds,
-        "timestamp":        datetime.now().isoformat(),
+        "score":   score,
+        "verdict": verdict,
+        "action":  action,
+        "message": message,
+        "reasons": reasons
     }
 
 
-# ─────────────────────────────────────────────────────────────
-#  LOGGING HELPER
-# ─────────────────────────────────────────────────────────────
-def save_log(data: dict, result: dict):
-    logs = []
-    if os.path.exists(LOG_FILE):
-        with open(LOG_FILE, "r") as f:
-            try:
-                logs = json.load(f)
-            except json.JSONDecodeError:
-                logs = []
-    logs.append({"input": data, "result": result})
-    with open(LOG_FILE, "w") as f:
-        json.dump(logs[-100:], f, indent=2)   # keep last 100
+# ─────────────────────────────────────────
+#  API ROUTES
+# ─────────────────────────────────────────
 
-
-# ─────────────────────────────────────────────────────────────
-#  ROUTES
-# ─────────────────────────────────────────────────────────────
-
-@app.route("/")
-def index():
-    return render_template_string(HTML_DEMO)
+@app.route("/api/health")
+def health():
+    return jsonify({"status": "ok", "service": "BehaviorShield"})
 
 
 @app.route("/api/analyze", methods=["POST"])
 def analyze():
-    """
-    POST /api/analyze
-    {
-        "amount":          75000,
-        "new_beneficiary": true,
-        "fast_typing":     false,
-        "copy_paste":      true,
-        "app_switching":   false,
-        "otp_retry":       true,
-        "screen_sharing":  false
-    }
-    """
-    data = request.get_json(force=True)
-
-    if not data:
-        return jsonify({"error": "No JSON body provided"}), 400
-    if "amount" not in data:
-        return jsonify({"error": "'amount' field is required"}), 422
+    data = request.get_json(silent=True) or {}
 
     result = compute_risk(data)
-    save_log(data, result)
-    return jsonify(result), 200
+
+    # --- 30-second cooldown for blocked IPs ---
+    ip = request.remote_addr
+    now = time.time()
+    if result["verdict"] == "blocked":
+        blocked_ips[ip] = now
+    else:
+        last_block = blocked_ips.get(ip, 0)
+        if now - last_block < 30:
+            result["verdict"] = "blocked"
+            result["action"]  = "BLOCK"
+            result["message"] = "Transaction blocked — 30-second cooldown active after previous block."
+
+    # --- Log it ---
+    log_entry = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "ip":        ip,
+        "input":     data,
+        "result":    result
+    }
+    transaction_log.append(log_entry)
+
+    return jsonify(result)
 
 
-@app.route("/api/history", methods=["GET"])
-def history():
-    """Returns last 20 flagged transactions."""
-    if not os.path.exists(LOG_FILE):
-        return jsonify([]), 200
-    with open(LOG_FILE, "r") as f:
-        try:
-            logs = json.load(f)
-        except json.JSONDecodeError:
-            return jsonify([]), 200
-    flagged = [l for l in logs if l["result"]["verdict"] != "safe"]
-    return jsonify(flagged[-20:]), 200
+@app.route("/api/log")
+def get_log():
+    """Returns last 50 transactions — useful for dashboard."""
+    return jsonify(transaction_log[-50:])
 
 
-@app.route("/api/signals", methods=["GET"])
-def signals():
-    """Returns all signal names and their weights."""
-    return jsonify(SIGNAL_WEIGHTS), 200
+@app.route("/api/stats")
+def stats():
+    total   = len(transaction_log)
+    blocked = sum(1 for t in transaction_log if t["result"]["verdict"] == "blocked")
+    warned  = sum(1 for t in transaction_log if t["result"]["verdict"] == "warned")
+    allowed = sum(1 for t in transaction_log if t["result"]["verdict"] == "allowed")
+    avg_score = (
+        sum(t["result"]["score"] for t in transaction_log) / total
+        if total > 0 else 0
+    )
+    return jsonify({
+        "total": total,
+        "blocked": blocked,
+        "warned": warned,
+        "allowed": allowed,
+        "avg_risk_score": round(avg_score, 1),
+        "fraud_rate_pct": round((blocked / total * 100), 1) if total else 0
+    })
 
 
-@app.route("/api/health", methods=["GET"])
-def health():
-    return jsonify({"status": "ok", "service": "BehaviorShield"}), 200
-
-
-# ─────────────────────────────────────────────────────────────
-#  BUILT-IN DEMO UI
-# ─────────────────────────────────────────────────────────────
-HTML_DEMO = """
+# ─────────────────────────────────────────
+#  BUILT-IN DEMO UI  (no separate HTML file needed)
+# ─────────────────────────────────────────
+DEMO_HTML = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BehaviorShield</title>
-<style>
-* { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: system-ui, sans-serif; background: #f5f5f0;
-       display: flex; justify-content: center; padding: 2rem 1rem; color: #222; }
-.wrap { width: 100%; max-width: 480px; }
-h1   { font-size: 20px; font-weight: 700; margin-bottom: 2px; }
-.sub { font-size: 13px; color: #888; margin-bottom: 1.5rem; }
-.card { background: #fff; border: 1px solid #e0e0d8; border-radius: 14px;
-        padding: 1.25rem; margin-bottom: 1rem; }
-label { font-size: 12px; color: #666; display: block; margin-bottom: 4px; }
-input[type=number], select { width: 100%; padding: 9px 11px; border: 1px solid #ddd;
-  border-radius: 8px; font-size: 14px; margin-bottom: 12px; }
-.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.checks { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 4px 0 14px; }
-.chk { display: flex; align-items: center; gap: 7px; font-size: 13px;
-       cursor: pointer; padding: 6px 8px; border-radius: 8px;
-       border: 1px solid #eee; user-select: none; }
-.chk:hover { background: #f8f8f4; }
-.chk input { width: 14px; height: 14px; cursor: pointer; }
-.sc-row { display: flex; gap: 6px; margin-bottom: 12px; flex-wrap: wrap; }
-.sc { padding: 5px 12px; border-radius: 20px; font-size: 12px; cursor: pointer;
-      border: 1px solid #ddd; background: #fff; color: #555; }
-.sc.on { border-color: #378add; color: #185fa5; background: #e6f1fb; }
-.btn { width: 100%; padding: 12px; border-radius: 10px; font-size: 15px;
-       font-weight: 600; border: none; cursor: pointer; background: #1a1a1a;
-       color: #fff; letter-spacing: .01em; }
-.btn:hover { background: #333; }
-.bar-bg { height: 10px; background: #eee; border-radius: 5px; overflow: hidden; margin: 6px 0 14px; }
-.bar-fill { height: 100%; border-radius: 5px; width: 0%;
-            transition: width .45s ease, background .45s ease; }
-.verdict { padding: 12px 14px; border-radius: 10px; font-size: 13px;
-           line-height: 1.5; margin-bottom: 10px; }
-.v-safe    { background: #eaf3de; color: #2a5009; border: 1px solid #97c459; }
-.v-warning { background: #faeeda; color: #5a3200; border: 1px solid #ef9f27; }
-.v-blocked { background: #fcebeb; color: #4a1010; border: 1px solid #e24b4a; }
-.tag { display: inline-block; font-size: 11px; padding: 2px 9px; border-radius: 20px;
-       background: #f0f0ea; color: #555; margin: 2px; }
-.meta { font-size: 11px; color: #aaa; margin-top: 8px; }
-.score-big { font-size: 32px; font-weight: 700; }
-#result { display: none; }
-.timer { font-size: 28px; font-weight: 700; color: #e24b4a; text-align: center;
-         padding: 8px 0; }
-</style>
+  <meta charset="UTF-8"/>
+  <title>BehaviorShield — Live Demo</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', sans-serif; background: #0d1117; color: #e6edf3; min-height: 100vh; }
+    header { background: #161b22; border-bottom: 1px solid #30363d; padding: 18px 32px;
+             display: flex; align-items: center; gap: 12px; }
+    header h1 { font-size: 1.4rem; color: #58a6ff; }
+    header span { font-size: 0.8rem; color: #8b949e; }
+    .container { max-width: 900px; margin: 40px auto; padding: 0 20px; }
+    h2 { color: #58a6ff; margin-bottom: 16px; font-size: 1rem; text-transform: uppercase; letter-spacing: 1px; }
+
+    /* Score meter */
+    .meter-wrap { background: #161b22; border: 1px solid #30363d; border-radius: 12px;
+                  padding: 28px; margin-bottom: 28px; text-align: center; }
+    #score-num { font-size: 5rem; font-weight: 700; transition: all 0.5s; }
+    .meter-bar-bg { background: #21262d; border-radius: 99px; height: 18px; margin: 12px auto; max-width: 500px; }
+    #meter-bar { height: 18px; border-radius: 99px; width: 0%; transition: all 0.6s; background: #3fb950; }
+    #verdict-badge { display: inline-block; margin-top: 14px; padding: 6px 22px;
+                     border-radius: 99px; font-weight: 700; font-size: 1rem; }
+    #risk-message { margin-top: 10px; color: #8b949e; font-size: 0.92rem; }
+
+    /* Scenarios */
+    .scenarios { display: flex; gap: 14px; margin-bottom: 28px; flex-wrap: wrap; }
+    .scenario-btn { flex: 1; min-width: 200px; padding: 16px; border-radius: 10px; border: none;
+                    cursor: pointer; font-size: 0.95rem; font-weight: 600; transition: transform 0.1s; }
+    .scenario-btn:active { transform: scale(0.97); }
+    .btn-normal  { background: #1f6feb33; color: #58a6ff; border: 1px solid #1f6feb; }
+    .btn-scam    { background: #9e6a0333; color: #d29922; border: 1px solid #9e6a03; }
+    .btn-screen  { background: #6e101033; color: #f85149; border: 1px solid #6e1010; }
+
+    /* Reasons list */
+    #reasons-box { background: #161b22; border: 1px solid #30363d; border-radius: 12px; padding: 20px; }
+    #reasons-list { list-style: none; margin-top: 10px; }
+    #reasons-list li { padding: 7px 0; border-bottom: 1px solid #21262d; font-size: 0.88rem; color: #8b949e; }
+    #reasons-list li::before { content: "⚡ "; }
+
+    /* Stats bar */
+    #stats-bar { display: flex; gap: 18px; margin-bottom: 28px; flex-wrap: wrap; }
+    .stat-card { flex: 1; min-width: 130px; background: #161b22; border: 1px solid #30363d;
+                 border-radius: 10px; padding: 16px; text-align: center; }
+    .stat-card .val { font-size: 2rem; font-weight: 700; color: #58a6ff; }
+    .stat-card .lbl { font-size: 0.75rem; color: #8b949e; margin-top: 4px; }
+  </style>
 </head>
 <body>
-<div class="wrap">
-  <h1>BehaviorShield</h1>
-  <p class="sub">Real-time scam manipulation detector</p>
+<header>
+  <div>
+    <h1>🛡️ BehaviorShield</h1>
+    <span>Real-Time Behavioural Fraud Detection — Live Demo</span>
+  </div>
+</header>
 
-  <div class="card">
-    <div class="sc-row">
-      <button class="sc on" onclick="scene('normal',this)">Normal transfer</button>
-      <button class="sc"    onclick="scene('scam',this)">Scam call</button>
-      <button class="sc"    onclick="scene('screen',this)">Screen-share fraud</button>
-    </div>
+<div class="container">
 
-    <div class="grid2">
-      <div>
-        <label>Amount (INR)</label>
-        <input type="number" id="amount" value="500" min="0">
-      </div>
-      <div>
-        <label>Beneficiary</label>
-        <select id="benef">
-          <option value="0">Known contact</option>
-          <option value="1">New / unknown</option>
-        </select>
-      </div>
-    </div>
-
-    <label>Behavioral signals observed</label>
-    <div class="checks">
-      <label class="chk"><input type="checkbox" id="fast_typing"> Fast typing</label>
-      <label class="chk"><input type="checkbox" id="copy_paste"> Copy-paste</label>
-      <label class="chk"><input type="checkbox" id="app_switching"> App switching</label>
-      <label class="chk"><input type="checkbox" id="otp_retry"> OTP retry</label>
-      <label class="chk"><input type="checkbox" id="screen_sharing"> Screen sharing</label>
-    </div>
-
-    <button class="btn" onclick="analyze()">Analyze transaction</button>
+  <!-- Stats -->
+  <div id="stats-bar">
+    <div class="stat-card"><div class="val" id="s-total">0</div><div class="lbl">Total Checks</div></div>
+    <div class="stat-card"><div class="val" id="s-blocked" style="color:#f85149">0</div><div class="lbl">Blocked</div></div>
+    <div class="stat-card"><div class="val" id="s-warned" style="color:#d29922">0</div><div class="lbl">Warned</div></div>
+    <div class="stat-card"><div class="val" id="s-allowed" style="color:#3fb950">0</div><div class="lbl">Allowed</div></div>
+    <div class="stat-card"><div class="val" id="s-fraud">0%</div><div class="lbl">Fraud Rate</div></div>
   </div>
 
-  <div class="card" id="result">
-    <label>Risk score</label>
-    <div class="score-big" id="score-num">0</div>
-    <div class="bar-bg"><div class="bar-fill" id="bar"></div></div>
-    <div class="verdict" id="verdict-box"></div>
-    <div id="timer-wrap" style="display:none">
-      <div class="timer" id="timer">30</div>
-      <p style="text-align:center;font-size:12px;color:#aaa;margin-bottom:8px">
-        seconds cooldown remaining
-      </p>
-    </div>
-    <div id="tags"></div>
-    <div class="meta" id="ts"></div>
+  <!-- Meter -->
+  <div class="meter-wrap">
+    <div id="score-num" style="color:#3fb950">0</div>
+    <div style="color:#8b949e; font-size:0.85rem; margin-top:4px;">Risk Score (0–100)</div>
+    <div class="meter-bar-bg"><div id="meter-bar"></div></div>
+    <div id="verdict-badge" style="background:#1a3a1a; color:#3fb950;">WAITING</div>
+    <div id="risk-message">Press a scenario button below to run the engine.</div>
   </div>
+
+  <!-- Scenario buttons -->
+  <h2>🎯 Judge Demo Scenarios</h2>
+  <div class="scenarios">
+    <button class="scenario-btn btn-normal"  onclick="runScenario('normal')">✅ Normal Transaction<br><small style="font-weight:400">₹500 · known beneficiary</small></button>
+    <button class="scenario-btn btn-scam"    onclick="runScenario('scam')">📞 Scam Call Fraud<br><small style="font-weight:400">₹75,000 · copy-paste · OTP retry</small></button>
+    <button class="scenario-btn btn-screen"  onclick="runScenario('screen')">🖥️ Screen-Share Attack<br><small style="font-weight:400">₹2,00,000 · screen sharing · new beneficiary</small></button>
+  </div>
+
+  <!-- Reasons -->
+  <div id="reasons-box">
+    <h2>🔍 Risk Signals Detected</h2>
+    <ul id="reasons-list"><li>No signals yet — run a scenario above.</li></ul>
+  </div>
+
 </div>
 
 <script>
-function scene(name, btn) {
-  document.querySelectorAll('.sc').forEach(b => b.classList.remove('on'));
-  btn.classList.add('on');
-  ['fast_typing','copy_paste','app_switching','otp_retry','screen_sharing']
-    .forEach(id => document.getElementById(id).checked = false);
+const SCENARIOS = {
+  normal: { amount:500, new_beneficiary:false, copy_paste:false, otp_retry:false,
+            screen_sharing:false, app_switching:false, typing_speed_wpm:42 },
+  scam:   { amount:75000, new_beneficiary:true, copy_paste:true, otp_retry:true,
+            screen_sharing:false, app_switching:true, typing_speed_wpm:130 },
+  screen: { amount:200000, new_beneficiary:true, copy_paste:true, otp_retry:false,
+            screen_sharing:true, app_switching:true, typing_speed_wpm:95 }
+};
 
-  if (name === 'normal') {
-    document.getElementById('amount').value = 500;
-    document.getElementById('benef').value  = '0';
-  } else if (name === 'scam') {
-    document.getElementById('amount').value = 75000;
-    document.getElementById('benef').value  = '1';
-    ['fast_typing','copy_paste','otp_retry'].forEach(id =>
-      document.getElementById(id).checked = true);
-  } else {
-    document.getElementById('amount').value = 200000;
-    document.getElementById('benef').value  = '1';
-    ['copy_paste','app_switching','screen_sharing'].forEach(id =>
-      document.getElementById(id).checked = true);
-  }
-}
-
-let timerInterval = null;
-
-async function analyze() {
-  const body = {
-    amount:          parseInt(document.getElementById('amount').value) || 0,
-    new_beneficiary: document.getElementById('benef').value === '1',
-    fast_typing:     document.getElementById('fast_typing').checked,
-    copy_paste:      document.getElementById('copy_paste').checked,
-    app_switching:   document.getElementById('app_switching').checked,
-    otp_retry:       document.getElementById('otp_retry').checked,
-    screen_sharing:  document.getElementById('screen_sharing').checked,
-  };
-
+async function runScenario(key) {
+  const payload = SCENARIOS[key];
   const res  = await fetch('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
+    body: JSON.stringify(payload)
   });
   const data = await res.json();
+  updateUI(data);
+  fetchStats();
+}
 
-  document.getElementById('result').style.display = 'block';
-  document.getElementById('score-num').textContent = data.score;
+function updateUI(data) {
+  const score = data.score;
+  document.getElementById('score-num').textContent = score;
+  document.getElementById('meter-bar').style.width = score + '%';
+  document.getElementById('risk-message').textContent = data.message;
 
-  const bar = document.getElementById('bar');
-  bar.style.width      = data.score + '%';
-  bar.style.background = data.score < 30 ? '#639922'
-                       : data.score < 65 ? '#BA7517' : '#E24B4A';
+  const badge  = document.getElementById('verdict-badge');
+  const num    = document.getElementById('score-num');
+  const bar    = document.getElementById('meter-bar');
 
-  const vbox = document.getElementById('verdict-box');
-  vbox.className = 'verdict v-' + data.verdict;
-  vbox.textContent = data.message;
-
-  document.getElementById('tags').innerHTML =
-    data.triggered.map(t =>
-      `<span class="tag">${t.replace(/_/g,' ')}</span>`
-    ).join('');
-
-  document.getElementById('ts').textContent =
-    'Analyzed at ' + new Date(data.timestamp).toLocaleTimeString();
-
-  // Cooldown timer
-  clearInterval(timerInterval);
-  const twrap = document.getElementById('timer-wrap');
-  if (data.cooldown_seconds > 0) {
-    twrap.style.display = 'block';
-    let t = data.cooldown_seconds;
-    document.getElementById('timer').textContent = t;
-    timerInterval = setInterval(() => {
-      t--;
-      document.getElementById('timer').textContent = t;
-      if (t <= 0) { clearInterval(timerInterval); twrap.style.display = 'none'; }
-    }, 1000);
+  if (data.verdict === 'blocked') {
+    badge.style.cssText = 'background:#3a0f0f; color:#f85149;';
+    badge.textContent   = '🚫 BLOCKED';
+    num.style.color     = '#f85149';
+    bar.style.background= '#f85149';
+  } else if (data.verdict === 'warned') {
+    badge.style.cssText = 'background:#3a2a0f; color:#d29922;';
+    badge.textContent   = '⚠️ WARNING';
+    num.style.color     = '#d29922';
+    bar.style.background= '#d29922';
   } else {
-    twrap.style.display = 'none';
+    badge.style.cssText = 'background:#0f3a1a; color:#3fb950;';
+    badge.textContent   = '✅ ALLOWED';
+    num.style.color     = '#3fb950';
+    bar.style.background= '#3fb950';
+  }
+
+  const list = document.getElementById('reasons-list');
+  if (data.reasons && data.reasons.length) {
+    list.innerHTML = data.reasons.map(r => `<li>${r}</li>`).join('');
+  } else {
+    list.innerHTML = '<li>No risk signals found — transaction looks normal.</li>';
   }
 }
+
+async function fetchStats() {
+  const res  = await fetch('/api/stats');
+  const data = await res.json();
+  document.getElementById('s-total').textContent   = data.total;
+  document.getElementById('s-blocked').textContent = data.blocked;
+  document.getElementById('s-warned').textContent  = data.warned;
+  document.getElementById('s-allowed').textContent = data.allowed;
+  document.getElementById('s-fraud').textContent   = data.fraud_rate_pct + '%';
+}
+
+fetchStats();
 </script>
 </body>
 </html>
 """
 
+@app.route("/")
+def index():
+    return render_template_string(DEMO_HTML)
+
+
 if __name__ == "__main__":
-    print("\n  BehaviorShield is running!")
-    print("  Open http://localhost:5000 in your browser\n")
+    print("\n✅ BehaviorShield is running!")
+    print("   Open http://localhost:5000 in your browser\n")
     app.run(debug=True, port=5000)
