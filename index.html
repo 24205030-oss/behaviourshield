@@ -1093,13 +1093,12 @@ function renderAutoRow(txn, result, ts) {
   const velocity = txn.txn_velocity || txn.velocity || '?';
   const location = txn.location_jump_km > 500 ? 'foreign' :
                    txn.location_jump_km > 100 ? 'diff state' : 'local';
-  const score = result.score;
+  const score = result.final_score ?? result.score ?? 0;
   const scoreColor = score >= 70 ? 'var(--red)' : score >= 40 ? 'var(--amber)' : 'var(--green)';
-  const signals = (result.reasons || []).slice(0,2).join(' · ') || 'none';
-  const vClass = result.verdict === 'blocked' ? 'v-block' :
-                 result.verdict === 'warned'  ? 'v-warned' : 'v-allowed';
-  const vLabel = result.verdict === 'blocked' ? 'BLOCKED' :
-                 result.verdict === 'warned'  ? 'WARN' : 'ALLOW';
+  const signals = (result.reasons || result.signals || []).slice(0,2).join(' · ') || 'none';
+  const v = String(result.verdict || '').toUpperCase();
+  const vClass = v === 'BLOCK' ? 'v-block' : v === 'WARN' ? 'v-warned' : 'v-allowed';
+  const vLabel = v === 'BLOCK' ? 'BLOCKED' : v === 'WARN' ? 'WARN' : 'ALLOW';
 
   const row = document.createElement('div');
   row.className = 'auto-row';
@@ -1119,8 +1118,9 @@ function renderAutoRow(txn, result, ts) {
 
 function updateAutoCounts(verdict) {
   aCounts.total++;
-  if (verdict === 'blocked') aCounts.blocked++;
-  else if (verdict === 'warned') aCounts.warned++;
+  const v = String(verdict || '').toUpperCase();
+  if (v === 'BLOCK' || v === 'BLOCKED') aCounts.blocked++;
+  else if (v === 'WARN' || v === 'WARNED') aCounts.warned++;
   else aCounts.allowed++;
   document.getElementById('a-total').textContent   = aCounts.total;
   document.getElementById('a-blocked').textContent = aCounts.blocked;
@@ -1370,18 +1370,47 @@ async function analyze() {
     ]);
     if (resp.ok) {
       const json = await resp.json();
-      const localResult = computeRisk(data);
       function mapVerdict(v) {
         if (!v) return 'ALLOW';
-        const m = { blocked:'BLOCK', warned:'WARN', allowed:'ALLOW' };
-        return m[v.toLowerCase()] || v.toUpperCase();
+        const s = String(v).toUpperCase();
+        if (s === 'BLOCK' || s === 'WARN' || s === 'ALLOW') return s;
+        const m = { BLOCKED:'BLOCK', WARNED:'WARN', ALLOWED:'ALLOW' };
+        return m[s] || 'ALLOW';
       }
-      function mergeSignals(existing, reasons) {
-        const out = { ...existing };
-        reasons.forEach(r => { out[r] = true; });
+      function buildExplainSignals(api) {
+        const out = {};
+        const reasons = Array.isArray(api.reasons) ? api.reasons : [];
+        const baseMax = 25;
+        reasons.forEach(r => {
+          out[r] = { value: 'triggered', score: baseMax, max: baseMax };
+        });
+        if (api.ml_result && api.ml_result.ml_score !== null && api.ml_result.ml_score !== undefined) {
+          const ms = Number(api.ml_result.ml_score) || 0;
+          out['ML Anomaly Score'] = { value: ms + '/100 (' + (api.ml_result.ml_label || 'N/A') + ')', score: Math.min(ms, 100), max: 100 };
+        }
+        if (api.thresholds && api.thresholds.block) {
+          out['Randomized Block Threshold'] = { value: api.thresholds.block + '/100', score: 0, max: 100 };
+        }
         return out;
       }
-      result = { ...localResult, score: json.score ?? localResult.score, verdict: mapVerdict(json.verdict), message: json.message || localResult.message, signals: mergeSignals(localResult.signals, json.reasons || []) };
+      const verdict = mapVerdict(json.verdict);
+      const score = Number(json.final_score ?? json.score ?? 0);
+      const reasons = (json.reasons || []).slice(0, 6).join(' · ') || 'none';
+      const thresholdTxt = json.thresholds && json.thresholds.block ? ` (block ≥ ${json.thresholds.block})` : '';
+      const msg =
+        verdict === 'BLOCK'
+          ? `🚨 BLOCKED — triggered: ${reasons}${thresholdTxt}`
+          : verdict === 'WARN'
+          ? `⚠️ VERIFY — triggered: ${reasons}${thresholdTxt}`
+          : `✅ ALLOWED — triggered: ${reasons}${thresholdTxt}`;
+
+      result = {
+        score,
+        verdict,
+        message: msg,
+        signals: buildExplainSignals(json),
+        api_raw: json
+      };
       usedAPI = true;
     } else throw new Error('bad');
   } catch(e) { result = computeRisk(data); }
