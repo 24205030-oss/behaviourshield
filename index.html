@@ -703,28 +703,28 @@
   <div class="stats-bar">
     <div class="stat-item">
       <span class="stat-label">Transactions Today</span>
-      <span class="stat-value cyan" id="txn-count">48,291</span>
-      <span class="stat-delta">↑ 2.3% vs yesterday</span>
+      <span class="stat-value cyan" id="txn-count">0</span>
+      <span class="stat-delta" id="txn-delta">No transactions yet</span>
     </div>
     <div class="stat-item">
       <span class="stat-label">Flagged Fraudulent</span>
-      <span class="stat-value red" id="fraud-count">137</span>
-      <span class="stat-delta">0.28% fraud rate</span>
+      <span class="stat-value red" id="fraud-count">0</span>
+      <span class="stat-delta" id="fraud-rate">0% fraud rate</span>
     </div>
     <div class="stat-item">
       <span class="stat-label">Blocked (Auto)</span>
-      <span class="stat-value amber" id="blocked-count">89</span>
-      <span class="stat-delta">65% auto-resolved</span>
+      <span class="stat-value amber" id="blocked-count">0</span>
+      <span class="stat-delta" id="blocked-rate">0% auto-resolved</span>
     </div>
     <div class="stat-item">
       <span class="stat-label">Avg Detection Time</span>
-      <span class="stat-value green">183ms</span>
-      <span class="stat-delta">↓ 12ms improvement</span>
+      <span class="stat-value green" id="avg-detection">—</span>
+      <span class="stat-delta" id="detection-delta">Waiting for first analysis</span>
     </div>
     <div class="stat-item">
       <span class="stat-label">Model Accuracy</span>
-      <span class="stat-value green">98.7%</span>
-      <span class="stat-delta">F1: 0.97 · AUC: 0.99</span>
+      <span class="stat-value green" id="model-accuracy">—</span>
+      <span class="stat-delta" id="accuracy-delta">Run analysis to measure</span>
     </div>
   </div>
 
@@ -1184,13 +1184,27 @@ function updateClock() {
 updateClock();
 setInterval(updateClock, 1000);
 
-// Simulate live counter ticking
-setInterval(() => {
-  const el = document.getElementById('txn-count');
-  const current = parseInt(el.textContent.replace(',',''));
-  const next = current + Math.floor(Math.random() * 4);
-  el.textContent = next.toLocaleString();
-}, 3000);
+// ─── Live Stats from Backend ─────────────────────────────────────────
+let detectionTimes = [];
+
+async function fetchLiveStats() {
+  try {
+    const resp = await fetch('http://localhost:5000/api/stats');
+    if (!resp.ok) return;
+    const s = await resp.json();
+    document.getElementById('txn-count').textContent = s.total.toLocaleString();
+    document.getElementById('txn-delta').textContent = s.total === 0 ? 'No transactions yet' : `${s.total} analyzed this session`;
+    document.getElementById('fraud-count').textContent = (s.warned + s.blocked);
+    document.getElementById('fraud-rate').textContent = s.fraud_rate_pct + '% fraud rate';
+    document.getElementById('blocked-count').textContent = s.blocked;
+    const blockedRate = s.total ? Math.round(s.blocked / s.total * 100) : 0;
+    document.getElementById('blocked-rate').textContent = blockedRate + '% auto-resolved';
+  } catch(e) { /* Flask not running — leave as is */ }
+}
+
+// Poll backend stats every 5 seconds
+fetchLiveStats();
+setInterval(fetchLiveStats, 5000);
 
 // ─── Toggle ──────────────────────────────────────────────────────────
 function toggleField(key) {
@@ -1402,6 +1416,24 @@ async function analyze() {
     const bc = document.getElementById('blocked-count');
     bc.textContent = parseInt(bc.textContent) + 1;
   }
+
+  // Update avg detection time
+  detectionTimes.push(elapsed);
+  const avgMs = Math.round(detectionTimes.reduce((a,b)=>a+b,0) / detectionTimes.length);
+  document.getElementById('avg-detection').textContent = avgMs + 'ms';
+  document.getElementById('detection-delta').textContent = `avg over ${detectionTimes.length} analysis`;
+
+  // Update accuracy badge based on API being live
+  if (usedAPI) {
+    document.getElementById('model-accuracy').textContent = 'Live';
+    document.getElementById('accuracy-delta').textContent = 'Connected to Flask backend';
+  } else {
+    document.getElementById('model-accuracy').textContent = 'Local';
+    document.getElementById('accuracy-delta').textContent = 'Using JS fallback engine';
+  }
+
+  // Refresh all stats from backend
+  fetchLiveStats();
 
   btn.textContent = '⚡ Analyze Transaction';
   btn.classList.remove('loading');
