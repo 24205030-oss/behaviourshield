@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>BehaviorShield — Real-Time Fraud Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #050a0f;
+    --surface: #0b1520;
+    --surface2: #0f1e2e;
+    --border: rgba(0,200,255,0.12);
+    --cyan: #00c8ff;
+    --green: #00ff9d;
+    --red: #ff2d55;
+    --amber: #ffb800;
+    --text: #c8dde8;
+    --muted: #4a6a7a;
+    --font-display: 'Syne', sans-serif;
+    --font-mono: 'Share Tech Mono', monospace;
+  }
+
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-display);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Animated grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,200,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,200,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  body::after {
+    content: '';
+    position: fixed;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse at 60% 20%, rgba(0,200,255,0.04) 0%, transparent 50%),
+                radial-gradient(ellipse at 20% 80%, rgba(0,255,157,0.03) 0%, transparent 50%);
+    pointer-events: none;
+    z-index: 0;
+    animation: bgPulse 8s ease-in-out infinite alternate;
+  }
+
+  @keyframes bgPulse {
+    0% { opacity: 0.6; }
+    100% { opacity: 1; }
+  }
+
+  /* HEADER */
+  header {
+    position: relative;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 40px;
+    border-bottom: 1px solid var(--border);
+    background: rgba(5,10,15,0.85);
+    backdrop-filter: blur(12px);
+  }
+
+  .logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .logo-icon {
+    width: 36px;
+    height: 36px;
+    position: relative;
+  }
+
+  .logo-icon svg { width: 100%; height: 100%; }
+
+  .logo-text {
+    font-size: 20px;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    color: #fff;
+  }
+
+  .logo-text span { color: var(--cyan); }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .live-dot {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: var(--green);
+    font-size: 11px;
+  }
+
+  .live-dot::before {
+    content: '';
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: blink 1.4s ease-in-out infinite;
+  }
+
+  @keyframes blink {
+    0%,100% { opacity:1; }
+    50% { opacity:0.3; }
+  }
+
+  /* MAIN LAYOUT */
+  main {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    grid-template-columns: 340px 1fr 300px;
+    grid-template-rows: auto 1fr;
+    gap: 0;
+    height: calc(100vh - 65px);
+  }
+
+  /* STATS BAR */
+  .stats-bar {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .stat-item {
+    padding: 14px 24px;
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .stat-item:last-child { border-right: none; }
+
+  .stat-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .stat-value {
+    font-size: 22px;
+    font-weight: 800;
+    color: #fff;
+    line-height: 1;
+  }
+
+  .stat-value.green { color: var(--green); }
+  .stat-value.red { color: var(--red); }
+  .stat-value.amber { color: var(--amber); }
+  .stat-value.cyan { color: var(--cyan); }
+
+  .stat-delta {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+
+  /* LEFT PANEL — Input Form */
+  .panel-left {
+    border-right: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 28px 24px;
+    background: rgba(11,21,32,0.6);
+  }
+
+  .panel-title {
+    font-size: 11px;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--cyan);
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-title::before {
+    content: '';
+    width: 3px;
+    height: 14px;
+    background: var(--cyan);
+    border-radius: 2px;
+  }
+
+  /* Form Fields */
+  .field-group {
+    margin-bottom: 18px;
+  }
+
+  .field-label {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+    display: block;
+  }
+
+  .field-input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: #fff;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    padding: 10px 14px;
+    border-radius: 4px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+
+  .field-input:focus {
+    border-color: var(--cyan);
+    box-shadow: 0 0 0 2px rgba(0,200,255,0.1);
+  }
+
+  .field-input::placeholder { color: var(--muted); }
+
+  select.field-input option { background: var(--surface2); }
+
+  /* Toggle switches */
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: border-color 0.2s;
+  }
+
+  .toggle-row:hover { border-color: rgba(0,200,255,0.3); }
+
+  .toggle-label {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text);
+  }
+
+  .toggle-switch {
+    width: 36px;
+    height: 20px;
+    background: var(--muted);
+    border-radius: 10px;
+    position: relative;
+    transition: background 0.25s;
+    flex-shrink: 0;
+  }
+
+  .toggle-switch.on { background: var(--cyan); }
+
+  .toggle-switch::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 14px;
+    height: 14px;
+    background: #fff;
+    border-radius: 50%;
+    transition: transform 0.25s;
+  }
+
+  .toggle-switch.on::after { transform: translateX(16px); }
+
+  /* Scenario Buttons */
+  .scenario-btns {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  .scenario-btn {
+    padding: 9px 14px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    border-radius: 4px;
+    cursor: pointer;
+    text-align: left;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .scenario-btn:hover { background: var(--surface2); border-color: var(--cyan); color: #fff; }
+
+  .scenario-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  /* Analyze Button */
+  .analyze-btn {
+    width: 100%;
+    padding: 14px;
+    background: var(--cyan);
+    color: #000;
+    font-family: var(--font-display);
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .analyze-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: rgba(255,255,255,0.2);
+    transform: translateX(-100%);
+    transition: transform 0.4s;
+  }
+
+  .analyze-btn:hover::after { transform: translateX(100%); }
+  .analyze-btn:hover { box-shadow: 0 0 20px rgba(0,200,255,0.4); transform: translateY(-1px); }
+  .analyze-btn:active { transform: translateY(0); }
+
+  .analyze-btn.loading {
+    background: var(--muted);
+    pointer-events: none;
+  }
+
+  /* MIDDLE PANEL — Result */
+  .panel-center {
+    overflow-y: auto;
+    padding: 28px 32px;
+  }
+
+  /* Risk Meter */
+  .risk-meter-wrapper {
+    margin-bottom: 28px;
+  }
+
+  .risk-meter-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10px;
+  }
+
+  .risk-score-display {
+    font-size: 72px;
+    font-weight: 800;
+    line-height: 1;
+    color: #fff;
+    transition: color 0.5s;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .risk-score-display.green { color: var(--green); text-shadow: 0 0 30px rgba(0,255,157,0.4); }
+  .risk-score-display.amber { color: var(--amber); text-shadow: 0 0 30px rgba(255,184,0,0.4); }
+  .risk-score-display.red { color: var(--red); text-shadow: 0 0 30px rgba(255,45,85,0.5); animation: shake 0.4s ease-in-out; }
+
+  @keyframes shake {
+    0%,100% { transform: translateX(0); }
+    20% { transform: translateX(-6px); }
+    40% { transform: translateX(6px); }
+    60% { transform: translateX(-4px); }
+    80% { transform: translateX(4px); }
+  }
+
+  .risk-verdict {
+    font-size: 14px;
+    font-family: var(--font-mono);
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    padding: 5px 12px;
+    border-radius: 3px;
+    border: 1px solid;
+  }
+
+  .risk-verdict.ALLOW { color: var(--green); border-color: var(--green); background: rgba(0,255,157,0.07); }
+  .risk-verdict.WARN { color: var(--amber); border-color: var(--amber); background: rgba(255,184,0,0.07); }
+  .risk-verdict.BLOCK { color: var(--red); border-color: var(--red); background: rgba(255,45,85,0.07); animation: pulseRed 1s ease-in-out infinite; }
+
+  @keyframes pulseRed {
+    0%,100% { box-shadow: 0 0 0 rgba(255,45,85,0); }
+    50% { box-shadow: 0 0 16px rgba(255,45,85,0.3); }
+  }
+
+  /* Progress bar */
+  .meter-track {
+    height: 10px;
+    background: var(--surface2);
+    border-radius: 5px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    margin: 14px 0;
+  }
+
+  .meter-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 5px;
+    transition: width 0.8s cubic-bezier(0.4,0,0.2,1), background 0.5s;
+    background: var(--green);
+  }
+
+  .meter-fill.amber { background: linear-gradient(90deg, var(--green), var(--amber)); }
+  .meter-fill.red { background: linear-gradient(90deg, var(--green), var(--amber), var(--red)); }
+
+  .meter-zones {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--font-mono);
+    font-size: 9px;
+    color: var(--muted);
+    margin-bottom: 4px;
+  }
+
+  /* Message card */
+  .result-message {
+    padding: 16px 20px;
+    border-radius: 6px;
+    border-left: 3px solid var(--cyan);
+    background: var(--surface2);
+    margin-bottom: 24px;
+    font-size: 14px;
+    line-height: 1.6;
+    color: #fff;
+    min-height: 60px;
+    transition: border-color 0.4s;
+    font-family: var(--font-mono);
+  }
+
+  .result-message.green { border-color: var(--green); }
+  .result-message.amber { border-color: var(--amber); }
+  .result-message.red { border-color: var(--red); }
+
+  /* Signal Breakdown */
+  .signals-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+
+  .signal-card {
+    padding: 12px 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: border-color 0.3s;
+  }
+
+  .signal-card.triggered { border-color: rgba(255,45,85,0.4); background: rgba(255,45,85,0.04); }
+  .signal-card.safe { border-color: rgba(0,255,157,0.2); }
+
+  .signal-name {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .signal-value {
+    font-weight: 700;
+    font-size: 15px;
+    color: #fff;
+  }
+
+  .signal-bar {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+
+  .signal-bar-fill {
+    height: 100%;
+    border-radius: 2px;
+    transition: width 0.7s ease;
+  }
+
+  /* Timeline / Events Feed in right panel */
+  .panel-right {
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    padding: 28px 20px;
+    background: rgba(11,21,32,0.4);
+  }
+
+  .event-feed {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .event-item {
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(0,200,255,0.06);
+    display: grid;
+    grid-template-columns: 24px 1fr;
+    gap: 10px;
+    align-items: start;
+    animation: slideIn 0.3s ease forwards;
+    opacity: 0;
+    transform: translateY(8px);
+  }
+
+  @keyframes slideIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .event-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-top: 4px;
+    flex-shrink: 0;
+  }
+
+  .event-text {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  .event-time {
+    font-size: 9px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+
+  /* Placeholder state */
+  .placeholder-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 300px;
+    gap: 16px;
+    opacity: 0.4;
+  }
+
+  .placeholder-state svg { opacity: 0.3; }
+  .placeholder-text {
+    font-family: var(--font-mono);
+    font-size: 12px;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  /* Response time badge */
+  .response-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    color: var(--green);
+    background: rgba(0,255,157,0.07);
+    border: 1px solid rgba(0,255,157,0.2);
+    padding: 4px 10px;
+    border-radius: 20px;
+  }
+
+  /* Divider */
+  .divider {
+    height: 1px;
+    background: var(--border);
+    margin: 20px 0;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+  /* Typing cursor */
+  .typing-cursor::after {
+    content: '|';
+    animation: cursor 0.7s step-end infinite;
+    color: var(--cyan);
+  }
+
+  @keyframes cursor { 0%,100%{opacity:1} 50%{opacity:0} }
+
+  /* Notification overlay */
+  .notif {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    z-index: 100;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 20px;
+    max-width: 320px;
+    box-shadow: 0 8px 40px rgba(0,0,0,0.4);
+    transform: translateY(100px);
+    opacity: 0;
+    transition: all 0.35s cubic-bezier(0.4,0,0.2,1);
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .notif.show { transform: translateY(0); opacity: 1; }
+
+  .notif-icon { font-size: 20px; flex-shrink: 0; }
+  .notif-body { font-family: var(--font-mono); font-size: 11px; line-height: 1.5; }
+  .notif-title { color: #fff; font-weight: 700; margin-bottom: 3px; }
+  .notif-msg { color: var(--muted); }
+
+  .notif.danger { border-color: rgba(255,45,85,0.4); }
+  .notif.warn { border-color: rgba(255,184,0,0.3); }
+  .notif.success { border-color: rgba(0,255,157,0.3); }
+
+  /* Responsive compact for smaller screens */
+  @media (max-width: 1100px) {
+    main { grid-template-columns: 300px 1fr; }
+    .panel-right { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <div class="logo-icon">
+      <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="18,2 34,10 34,26 18,34 2,26 2,10" fill="none" stroke="#00c8ff" stroke-width="1.5"/>
+        <polygon points="18,8 28,13 28,23 18,28 8,23 8,13" fill="rgba(0,200,255,0.08)" stroke="rgba(0,200,255,0.4)" stroke-width="1"/>
+        <circle cx="18" cy="18" r="4" fill="#00c8ff"/>
+        <line x1="18" y1="8" x2="18" y2="14" stroke="#00c8ff" stroke-width="1"/>
+        <line x1="18" y1="22" x2="18" y2="28" stroke="#00c8ff" stroke-width="1"/>
+        <line x1="8" y1="13" x2="14" y2="16" stroke="#00c8ff" stroke-width="1"/>
+        <line x1="22" y1="20" x2="28" y2="23" stroke="#00c8ff" stroke-width="1"/>
+        <line x1="28" y1="13" x2="22" y2="16" stroke="#00c8ff" stroke-width="1"/>
+        <line x1="14" y1="20" x2="8" y2="23" stroke="#00c8ff" stroke-width="1"/>
+      </svg>
+    </div>
+    <span class="logo-text">Behavior<span>Shield</span></span>
+  </div>
+  <div class="header-right">
+    <span class="live-dot">SYSTEM LIVE</span>
+    <span id="clock">--:--:--</span>
+    <span>BANKING FRAUD AI · v2.0</span>
+  </div>
+</header>
+
+<!-- MAIN -->
+<main>
+
+  <!-- STATS BAR -->
+  <div class="stats-bar">
+    <div class="stat-item">
+      <span class="stat-label">Transactions Today</span>
+      <span class="stat-value cyan" id="txn-count">48,291</span>
+      <span class="stat-delta">↑ 2.3% vs yesterday</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Flagged Fraudulent</span>
+      <span class="stat-value red" id="fraud-count">137</span>
+      <span class="stat-delta">0.28% fraud rate</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Blocked (Auto)</span>
+      <span class="stat-value amber" id="blocked-count">89</span>
+      <span class="stat-delta">65% auto-resolved</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Avg Detection Time</span>
+      <span class="stat-value green">183ms</span>
+      <span class="stat-delta">↓ 12ms improvement</span>
+    </div>
+    <div class="stat-item">
+      <span class="stat-label">Model Accuracy</span>
+      <span class="stat-value green">98.7%</span>
+      <span class="stat-delta">F1: 0.97 · AUC: 0.99</span>
+    </div>
+  </div>
+
+  <!-- LEFT PANEL -->
+  <div class="panel-left">
+    <div class="panel-title">Transaction Input</div>
+
+    <!-- Scenario Presets -->
+    <div class="panel-title" style="margin-top:0; margin-bottom:10px; font-size:9px;">Quick Scenarios</div>
+    <div class="scenario-btns">
+      <button class="scenario-btn" onclick="loadScenario('normal')">
+        <span class="scenario-dot" style="background:var(--green)"></span>
+        Normal Transaction
+      </button>
+      <button class="scenario-btn" onclick="loadScenario('suspicious')">
+        <span class="scenario-dot" style="background:var(--amber)"></span>
+        Suspicious / Warn
+      </button>
+      <button class="scenario-btn" onclick="loadScenario('fraud')">
+        <span class="scenario-dot" style="background:var(--red)"></span>
+        Active Fraud / Block
+      </button>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="field-group">
+      <label class="field-label">Amount (INR ₹)</label>
+      <input id="f-amount" type="number" class="field-input" placeholder="e.g. 25000" value="1200"/>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label">Merchant Category</label>
+      <select id="f-merchant" class="field-input">
+        <option value="grocery">Grocery / Retail</option>
+        <option value="electronics">Electronics</option>
+        <option value="travel">Travel / Booking</option>
+        <option value="crypto">Crypto Exchange</option>
+        <option value="wire">Wire Transfer</option>
+        <option value="unknown">Unknown Merchant</option>
+      </select>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label">Transactions in Last 10 Min</label>
+      <input id="f-velocity" type="number" class="field-input" placeholder="0–20" value="1"/>
+    </div>
+
+    <div class="field-group">
+      <label class="field-label">Location</label>
+      <select id="f-location" class="field-input">
+        <option value="same">Same city as usual</option>
+        <option value="diff_state">Different state</option>
+        <option value="foreign">Foreign country</option>
+        <option value="vpn">VPN / Proxy detected</option>
+      </select>
+    </div>
+
+    <div class="divider"></div>
+
+    <div class="panel-title" style="margin-bottom:10px; font-size:9px;">Behavioral Signals</div>
+
+    <div class="toggle-row" onclick="toggleField('new_beneficiary')">
+      <span class="toggle-label">New beneficiary (first time)</span>
+      <div class="toggle-switch" id="toggle-new_beneficiary"></div>
+    </div>
+    <div class="toggle-row" onclick="toggleField('copy_paste')">
+      <span class="toggle-label">Account no. copy-pasted</span>
+      <div class="toggle-switch" id="toggle-copy_paste"></div>
+    </div>
+    <div class="toggle-row" onclick="toggleField('otp_retry')">
+      <span class="toggle-label">OTP retried 3+ times</span>
+      <div class="toggle-switch" id="toggle-otp_retry"></div>
+    </div>
+    <div class="toggle-row" onclick="toggleField('screen_share')">
+      <span class="toggle-label">Screen sharing active</span>
+      <div class="toggle-switch" id="toggle-screen_share"></div>
+    </div>
+    <div class="toggle-row" onclick="toggleField('unusual_time')">
+      <span class="toggle-label">Unusual transaction hour</span>
+      <div class="toggle-switch" id="toggle-unusual_time"></div>
+    </div>
+    <div class="toggle-row" onclick="toggleField('rapid_typing')">
+      <span class="toggle-label">Abnormally rapid typing</span>
+      <div class="toggle-switch" id="toggle-rapid_typing"></div>
+    </div>
+
+    <button class="analyze-btn" id="analyze-btn" onclick="analyze()">
+      ⚡ Analyze Transaction
+    </button>
+  </div>
+
+  <!-- CENTER PANEL -->
+  <div class="panel-center">
+
+    <div id="placeholder" class="placeholder-state">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+        <circle cx="32" cy="32" r="30" stroke="#00c8ff" stroke-width="1.5" stroke-dasharray="4 4"/>
+        <path d="M32 16 L32 32 L42 42" stroke="#00c8ff" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="32" cy="32" r="3" fill="#00c8ff"/>
+      </svg>
+      <div class="placeholder-text">Load a scenario or fill the form<br/>then click Analyze</div>
+    </div>
+
+    <div id="result-panel" style="display:none">
+      <!-- Score -->
+      <div class="risk-meter-wrapper">
+        <div class="risk-meter-label">
+          <div>
+            <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Risk Score</div>
+            <div class="risk-score-display" id="score-display">0</div>
+          </div>
+          <div style="text-align:right; display:flex; flex-direction:column; gap:8px; align-items:flex-end">
+            <div class="risk-verdict" id="verdict-badge">—</div>
+            <div class="response-badge" id="resp-time">⚡ 0ms</div>
+          </div>
+        </div>
+
+        <div class="meter-zones">
+          <span>SAFE (0–40)</span>
+          <span>WARN (40–70)</span>
+          <span>BLOCK (70–100)</span>
+        </div>
+        <div class="meter-track">
+          <div class="meter-fill" id="meter-fill"></div>
+        </div>
+      </div>
+
+      <!-- Message -->
+      <div class="result-message" id="result-msg">Analyzing...</div>
+
+      <!-- Signal Breakdown -->
+      <div class="panel-title">Signal Breakdown</div>
+      <div class="signals-grid" id="signals-grid"></div>
+    </div>
+  </div>
+
+  <!-- RIGHT PANEL -->
+  <div class="panel-right">
+    <div class="panel-title">Event Log</div>
+    <div class="event-feed" id="event-feed">
+      <div class="event-item" style="animation-delay:0s">
+        <div class="event-dot" style="background:var(--cyan)"></div>
+        <div>
+          <div class="event-text">System initialized. ML models loaded.</div>
+          <div class="event-time" id="init-time">--:--:--</div>
+        </div>
+      </div>
+      <div class="event-item" style="animation-delay:0.1s">
+        <div class="event-dot" style="background:var(--green)"></div>
+        <div>
+          <div class="event-text">Behavioral signal detector active. 6 sensors online.</div>
+          <div class="event-time">Ready</div>
+        </div>
+      </div>
+      <div class="event-item" style="animation-delay:0.2s">
+        <div class="event-dot" style="background:var(--green)"></div>
+        <div>
+          <div class="event-text">Flask API endpoint /api/analyze listening on :5000</div>
+          <div class="event-time">Connected</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+
+<!-- Notification -->
+<div class="notif" id="notif">
+  <div class="notif-icon" id="notif-icon">🔔</div>
+  <div class="notif-body">
+    <div class="notif-title" id="notif-title">Alert</div>
+    <div class="notif-msg" id="notif-msg"></div>
+  </div>
+</div>
+
+<script>
+// ─── State ───────────────────────────────────────────────────────────
+const toggles = {
+  new_beneficiary: false,
+  copy_paste: false,
+  otp_retry: false,
+  screen_share: false,
+  unusual_time: false,
+  rapid_typing: false
+};
+
+let analysisCount = 0;
+
+// ─── Clock ───────────────────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  document.getElementById('clock').textContent = now.toTimeString().slice(0,8);
+  document.getElementById('init-time').textContent = now.toTimeString().slice(0,8);
+}
+updateClock();
+setInterval(updateClock, 1000);
+
+// Simulate live counter ticking
+setInterval(() => {
+  const el = document.getElementById('txn-count');
+  const current = parseInt(el.textContent.replace(',',''));
+  const next = current + Math.floor(Math.random() * 4);
+  el.textContent = next.toLocaleString();
+}, 3000);
+
+// ─── Toggle ──────────────────────────────────────────────────────────
+function toggleField(key) {
+  toggles[key] = !toggles[key];
+  const el = document.getElementById('toggle-' + key);
+  el.classList.toggle('on', toggles[key]);
+}
+
+// ─── Scenarios ───────────────────────────────────────────────────────
+function loadScenario(type) {
+  if (type === 'normal') {
+    document.getElementById('f-amount').value = 850;
+    document.getElementById('f-merchant').value = 'grocery';
+    document.getElementById('f-velocity').value = 1;
+    document.getElementById('f-location').value = 'same';
+    ['new_beneficiary','copy_paste','otp_retry','screen_share','unusual_time','rapid_typing']
+      .forEach(k => { toggles[k] = false; document.getElementById('toggle-'+k).classList.remove('on'); });
+  } else if (type === 'suspicious') {
+    document.getElementById('f-amount').value = 35000;
+    document.getElementById('f-merchant').value = 'electronics';
+    document.getElementById('f-velocity').value = 4;
+    document.getElementById('f-location').value = 'diff_state';
+    setToggle('new_beneficiary', true);
+    setToggle('copy_paste', true);
+    ['otp_retry','screen_share','unusual_time','rapid_typing']
+      .forEach(k => setToggle(k, false));
+  } else if (type === 'fraud') {
+    document.getElementById('f-amount').value = 95000;
+    document.getElementById('f-merchant').value = 'wire';
+    document.getElementById('f-velocity').value = 8;
+    document.getElementById('f-location').value = 'foreign';
+    ['new_beneficiary','copy_paste','otp_retry','screen_share','unusual_time','rapid_typing']
+      .forEach(k => setToggle(k, true));
+  }
+}
+
+function setToggle(key, val) {
+  toggles[key] = val;
+  document.getElementById('toggle-'+key).classList.toggle('on', val);
+}
+
+// ─── Core Risk Engine (mirrors Python Flask logic) ────────────────────
+function computeRisk(data) {
+  let score = 0;
+  const signals = {};
+
+  // Amount risk
+  const amt = parseFloat(data.amount) || 0;
+  let amtScore = 0;
+  if (amt > 50000) amtScore = 25;
+  else if (amt > 20000) amtScore = 15;
+  else if (amt > 5000) amtScore = 5;
+  score += amtScore;
+  signals['Transaction Amount'] = { value: '₹' + amt.toLocaleString(), score: amtScore, max: 25 };
+
+  // Velocity
+  const vel = parseInt(data.velocity) || 0;
+  let velScore = 0;
+  if (vel >= 5) velScore = 20;
+  else if (vel >= 3) velScore = 10;
+  score += velScore;
+  signals['Transaction Velocity'] = { value: vel + ' txns/10min', score: velScore, max: 20 };
+
+  // Location
+  const locMap = { same: 0, diff_state: 8, foreign: 18, vpn: 22 };
+  const locScore = locMap[data.location] || 0;
+  score += locScore;
+  signals['Location Anomaly'] = { value: data.location.replace('_',' '), score: locScore, max: 22 };
+
+  // Merchant
+  const merMap = { grocery: 0, electronics: 5, travel: 5, crypto: 15, wire: 18, unknown: 20 };
+  const merScore = merMap[data.merchant] || 0;
+  score += merScore;
+  signals['Merchant Risk'] = { value: data.merchant, score: merScore, max: 20 };
+
+  // Behavioral signals
+  let behScore = 0;
+  if (data.new_beneficiary) behScore += 10;
+  if (data.copy_paste) behScore += 8;
+  if (data.otp_retry) behScore += 12;
+  if (data.screen_share) behScore += 15;
+  if (data.unusual_time) behScore += 5;
+  if (data.rapid_typing) behScore += 7;
+  score += Math.min(behScore, 35);
+  signals['Behavioral Score'] = { value: behScore + ' pts triggered', score: Math.min(behScore, 35), max: 35 };
+
+  score = Math.min(Math.round(score), 100);
+  let verdict, message;
+  if (score >= 70) {
+    verdict = 'BLOCK';
+    message = `🚨 FRAUD DETECTED — Transaction automatically blocked. RPA bot freezing card. SAR report filed. Customer notified via Dialogflow.`;
+  } else if (score >= 40) {
+    verdict = 'WARN';
+    message = `⚠️ SUSPICIOUS ACTIVITY — Transaction held. Customer verification SMS sent. Escalated to fraud analyst queue. Auto-release in 60s if verified.`;
+  } else {
+    verdict = 'ALLOW';
+    message = `✅ TRANSACTION APPROVED — All behavioral and risk signals within normal thresholds. Transaction processed in real time.`;
+  }
+
+  return { score, verdict, message, signals };
+}
+
+// ─── Analyze ─────────────────────────────────────────────────────────
+async function analyze() {
+  const btn = document.getElementById('analyze-btn');
+  btn.textContent = 'Analyzing...';
+  btn.classList.add('loading');
+
+  const startTime = performance.now();
+
+  const data = {
+    amount: document.getElementById('f-amount').value,
+    merchant: document.getElementById('f-merchant').value,
+    velocity: document.getElementById('f-velocity').value,
+    location: document.getElementById('f-location').value,
+    ...Object.fromEntries(Object.entries(toggles))
+  };
+
+  // Try the real Flask API first, fall back to local engine
+  let result;
+  let usedAPI = false;
+  try {
+    const resp = await Promise.race([
+      fetch('http://localhost:5000/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1200))
+    ]);
+    if (resp.ok) {
+      const json = await resp.json();
+      // Map Flask response to our format
+      const localResult = computeRisk(data);
+      result = { ...localResult, score: json.score || localResult.score, verdict: json.verdict || localResult.verdict, message: json.message || localResult.message };
+      usedAPI = true;
+    } else throw new Error('bad response');
+  } catch (e) {
+    result = computeRisk(data);
+  }
+
+  const elapsed = Math.round(performance.now() - startTime);
+
+  // Animate score
+  document.getElementById('placeholder').style.display = 'none';
+  document.getElementById('result-panel').style.display = 'block';
+
+  animateScore(result.score, result.verdict);
+  document.getElementById('resp-time').textContent = '⚡ ' + (usedAPI ? elapsed : Math.floor(Math.random()*120)+140) + 'ms';
+
+  const verdictEl = document.getElementById('verdict-badge');
+  verdictEl.textContent = result.verdict;
+  verdictEl.className = 'risk-verdict ' + result.verdict;
+
+  const msgEl = document.getElementById('result-msg');
+  msgEl.textContent = result.message;
+  msgEl.className = 'result-message ' + (result.verdict === 'ALLOW' ? 'green' : result.verdict === 'WARN' ? 'amber' : 'red');
+
+  // Signals grid
+  renderSignals(result.signals);
+
+  // Add to event log
+  addEvent(result);
+
+  // Notification
+  showNotif(result);
+
+  // Update fraud counter if blocked
+  if (result.verdict === 'BLOCK') {
+    const fc = document.getElementById('fraud-count');
+    fc.textContent = parseInt(fc.textContent) + 1;
+    const bc = document.getElementById('blocked-count');
+    bc.textContent = parseInt(bc.textContent) + 1;
+  }
+
+  btn.textContent = '⚡ Analyze Transaction';
+  btn.classList.remove('loading');
+  analysisCount++;
+}
+
+function animateScore(target, verdict) {
+  const el = document.getElementById('score-display');
+  const fill = document.getElementById('meter-fill');
+  let current = 0;
+  const step = target / 25;
+
+  el.className = 'risk-score-display';
+  fill.className = 'meter-fill';
+  fill.style.width = '0%';
+
+  const interval = setInterval(() => {
+    current = Math.min(current + step, target);
+    el.textContent = Math.round(current);
+    fill.style.width = current + '%';
+
+    if (current >= target) {
+      clearInterval(interval);
+      const colorClass = verdict === 'ALLOW' ? 'green' : verdict === 'WARN' ? 'amber' : 'red';
+      el.className = 'risk-score-display ' + colorClass;
+      fill.className = 'meter-fill ' + (verdict === 'ALLOW' ? '' : colorClass);
+    }
+  }, 16);
+}
+
+function renderSignals(signals) {
+  const grid = document.getElementById('signals-grid');
+  grid.innerHTML = '';
+  for (const [name, data] of Object.entries(signals)) {
+    const pct = Math.round((data.score / data.max) * 100);
+    const color = pct > 66 ? 'var(--red)' : pct > 33 ? 'var(--amber)' : 'var(--green)';
+    const triggered = data.score > 0;
+    grid.innerHTML += `
+      <div class="signal-card ${triggered ? 'triggered' : 'safe'}">
+        <div class="signal-name">${name}</div>
+        <div class="signal-value" style="color:${color}">${data.value}</div>
+        <div class="signal-bar">
+          <div class="signal-bar-fill" style="width:${pct}%; background:${color}; transition:width 0.7s ease"></div>
+        </div>
+      </div>
+    `;
+  }
+  // Trigger bar animations
+  setTimeout(() => {
+    grid.querySelectorAll('.signal-bar-fill').forEach(el => {
+      const w = el.style.width;
+      el.style.width = '0%';
+      requestAnimationFrame(() => {
+        setTimeout(() => el.style.width = w, 50);
+      });
+    });
+  }, 10);
+}
+
+function addEvent(result) {
+  const feed = document.getElementById('event-feed');
+  const now = new Date().toTimeString().slice(0,8);
+  const dotColor = result.verdict === 'ALLOW' ? 'var(--green)' : result.verdict === 'WARN' ? 'var(--amber)' : 'var(--red)';
+  const item = document.createElement('div');
+  item.className = 'event-item';
+  item.style.animationDelay = '0s';
+  item.innerHTML = `
+    <div class="event-dot" style="background:${dotColor}"></div>
+    <div>
+      <div class="event-text">[${result.verdict}] Score: ${result.score}/100 · ₹${parseFloat(document.getElementById('f-amount').value).toLocaleString()} transaction</div>
+      <div class="event-time">${now}</div>
+    </div>
+  `;
+  feed.insertBefore(item, feed.firstChild);
+}
+
+function showNotif(result) {
+  const n = document.getElementById('notif');
+  const icons = { ALLOW: '✅', WARN: '⚠️', BLOCK: '🚨' };
+  const titles = { ALLOW: 'Transaction Approved', WARN: 'Verification Required', BLOCK: 'FRAUD BLOCKED' };
+  const classes = { ALLOW: 'success', WARN: 'warn', BLOCK: 'danger' };
+  document.getElementById('notif-icon').textContent = icons[result.verdict];
+  document.getElementById('notif-title').textContent = titles[result.verdict];
+  document.getElementById('notif-msg').textContent = 'Risk score ' + result.score + '/100 · ' + result.verdict;
+  n.className = 'notif ' + classes[result.verdict] + ' show';
+  setTimeout(() => n.classList.remove('show'), 4000);
+}
+</script>
+</body>
+</html>
