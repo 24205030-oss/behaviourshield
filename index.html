@@ -892,6 +892,267 @@
 
 </main>
 
+<!-- ═══════════════════════════════════════════════════════
+     AUTO-DETECTION PANEL  — This is the "Smart Automation"
+     It polls /api/simulate every few seconds automatically
+     and shows real-time fraud detection with zero human input
+════════════════════════════════════════════════════════ -->
+<section id="auto-section" style="
+  max-width:1400px; margin:0 auto 40px; padding:0 24px;
+">
+
+  <!-- Header bar -->
+  <div style="
+    display:flex; align-items:center; justify-content:space-between;
+    background:#0b1520; border:1px solid rgba(0,200,255,0.15);
+    border-radius:12px 12px 0 0; padding:16px 24px;
+  ">
+    <div style="display:flex; align-items:center; gap:14px;">
+      <div id="auto-pulse" style="
+        width:10px; height:10px; border-radius:50%;
+        background:#555; transition:background 0.3s;
+      "></div>
+      <span style="font-family:'Syne',sans-serif; font-weight:700; font-size:1rem; color:#00c8ff;">
+        Real-Time Auto-Detection Engine
+      </span>
+      <span style="font-size:0.75rem; color:#4a6a7a; font-family:'Share Tech Mono',monospace;">
+        — transactions analyzed automatically, no human input
+      </span>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center;">
+      <span id="auto-status-text" style="font-size:0.78rem; color:#4a6a7a; font-family:monospace;">IDLE</span>
+      <button onclick="toggleAutoDetect()" id="auto-btn" style="
+        background:#0f1e2e; border:1px solid rgba(0,200,255,0.3);
+        color:#00c8ff; padding:8px 20px; border-radius:6px;
+        font-family:'Syne',sans-serif; font-weight:700; font-size:0.85rem;
+        cursor:pointer; transition:all 0.2s;
+      ">START AUTO-DETECT</button>
+      <button onclick="burstSimulate()" style="
+        background:#0f1e2e; border:1px solid rgba(255,184,0,0.3);
+        color:#ffb800; padding:8px 20px; border-radius:6px;
+        font-family:'Syne',sans-serif; font-weight:700; font-size:0.85rem;
+        cursor:pointer; transition:all 0.2s;
+      ">BURST (10 TXN)</button>
+    </div>
+  </div>
+
+  <!-- Live feed table -->
+  <div style="
+    background:#050a0f; border:1px solid rgba(0,200,255,0.1);
+    border-top:none; border-radius:0 0 12px 12px; overflow:hidden;
+  ">
+    <!-- Table header -->
+    <div style="
+      display:grid; grid-template-columns:120px 90px 140px 80px 80px 80px 1fr 100px;
+      padding:10px 16px; background:#0b1520;
+      border-bottom:1px solid rgba(0,200,255,0.1);
+      font-size:0.7rem; color:#4a6a7a; font-family:monospace; gap:8px;
+    ">
+      <span>TIME</span><span>AMOUNT</span><span>MERCHANT</span>
+      <span>VELOCITY</span><span>LOCATION</span><span>SCORE</span>
+      <span>SIGNALS</span><span>VERDICT</span>
+    </div>
+
+    <!-- Live rows injected here -->
+    <div id="auto-feed" style="max-height:320px; overflow-y:auto;"></div>
+
+    <!-- Summary bar -->
+    <div style="
+      display:flex; gap:32px; padding:12px 20px;
+      border-top:1px solid rgba(0,200,255,0.08);
+      background:#0b1520; font-family:monospace; font-size:0.78rem;
+    ">
+      <span>Auto-analyzed: <strong id="a-total" style="color:#00c8ff;">0</strong></span>
+      <span>Blocked: <strong id="a-blocked" style="color:#ff2d55;">0</strong></span>
+      <span>Warned: <strong id="a-warned" style="color:#ffb800;">0</strong></span>
+      <span>Allowed: <strong id="a-allowed" style="color:#00ff9d;">0</strong></span>
+      <span>Fraud rate: <strong id="a-rate" style="color:#ff2d55;">0%</strong></span>
+      <span style="margin-left:auto; color:#4a6a7a;" id="a-source">source: —</span>
+    </div>
+  </div>
+</section>
+
+<style>
+.auto-row {
+  display:grid;
+  grid-template-columns:120px 90px 140px 80px 80px 80px 1fr 100px;
+  padding:9px 16px; gap:8px;
+  font-family:'Share Tech Mono',monospace; font-size:0.72rem; color:#c8dde8;
+  border-bottom:1px solid rgba(0,200,255,0.05);
+  animation: rowIn 0.3s ease;
+}
+.auto-row:hover { background:rgba(0,200,255,0.03); }
+@keyframes rowIn { from { opacity:0; transform:translateX(-8px); } to { opacity:1; transform:none; } }
+.v-block { color:#ff2d55; font-weight:700; }
+.v-warned { color:#ffb800; font-weight:700; }
+.v-allowed { color:#00ff9d; }
+#auto-pulse.active { background:#00ff9d; box-shadow:0 0 8px #00ff9d; animation: pulseGlow 1s infinite; }
+@keyframes pulseGlow { 0%,100%{opacity:1} 50%{opacity:0.4} }
+</style>
+
+<script>
+// ═══ AUTO-DETECTION ENGINE ═══════════════════════════════
+let autoTimer = null;
+let autoRunning = false;
+let aCounts = { total:0, blocked:0, warned:0, allowed:0 };
+let usingRealAPI = false;
+
+async function runOneAutoTxn() {
+  try {
+    // Call the real Flask auto-simulation endpoint
+    const resp = await Promise.race([
+      fetch('http://localhost:5000/api/simulate'),
+      new Promise((_,r) => setTimeout(() => r(new Error('timeout')), 1500))
+    ]);
+
+    if (resp.ok) {
+      const data = await resp.json();
+      usingRealAPI = true;
+      document.getElementById('a-source').textContent = 'source: Flask API (real backend)';
+      renderAutoRow(data.transaction, data.result, data.timestamp);
+      updateAutoCounts(data.result.verdict);
+    } else throw new Error('bad');
+  } catch(e) {
+    // Fallback: generate locally if Flask not running
+    usingRealAPI = false;
+    document.getElementById('a-source').textContent = 'source: local JS engine (start Flask for full demo)';
+    const txn = generateLocalTxn();
+    const result = computeRisk(txn);
+    renderAutoRow(txn, result, new Date().toISOString().slice(0,19));
+    updateAutoCounts(result.verdict);
+  }
+}
+
+function renderAutoRow(txn, result, ts) {
+  const feed = document.getElementById('auto-feed');
+  const time = ts ? ts.slice(11,19) : new Date().toTimeString().slice(0,8);
+  const amount = '₹' + Number(txn.amount || 0).toLocaleString('en-IN');
+  const merchant = (txn.merchant || 'unknown').replace('_',' ');
+  const velocity = txn.txn_velocity || txn.velocity || '?';
+  const location = txn.location_jump_km > 500 ? 'foreign' :
+                   txn.location_jump_km > 100 ? 'diff state' : 'local';
+  const score = result.score;
+  const scoreColor = score >= 70 ? '#ff2d55' : score >= 40 ? '#ffb800' : '#00ff9d';
+  const signals = (result.reasons || []).slice(0,2).join(' · ') || 'none';
+  const vClass = result.verdict === 'blocked' ? 'v-block' :
+                 result.verdict === 'warned'  ? 'v-warned' : 'v-allowed';
+  const vLabel = result.verdict === 'blocked' ? 'BLOCKED' :
+                 result.verdict === 'warned'  ? 'WARN' : 'ALLOW';
+
+  const row = document.createElement('div');
+  row.className = 'auto-row';
+  row.innerHTML = `
+    <span>${time}</span>
+    <span>${amount}</span>
+    <span>${merchant}</span>
+    <span>${velocity}x/2min</span>
+    <span>${location}</span>
+    <span style="color:${scoreColor};font-weight:700">${score}</span>
+    <span style="color:#4a6a7a;font-size:0.68rem">${signals}</span>
+    <span class="${vClass}">${vLabel}</span>
+  `;
+
+  // Prepend so newest is on top
+  feed.insertBefore(row, feed.firstChild);
+
+  // Keep max 50 rows
+  while (feed.children.length > 50) feed.removeChild(feed.lastChild);
+}
+
+function updateAutoCounts(verdict) {
+  aCounts.total++;
+  if (verdict === 'blocked') aCounts.blocked++;
+  else if (verdict === 'warned') aCounts.warned++;
+  else aCounts.allowed++;
+
+  document.getElementById('a-total').textContent   = aCounts.total;
+  document.getElementById('a-blocked').textContent = aCounts.blocked;
+  document.getElementById('a-warned').textContent  = aCounts.warned;
+  document.getElementById('a-allowed').textContent = aCounts.allowed;
+  const rate = aCounts.total ? Math.round(aCounts.blocked/aCounts.total*100) : 0;
+  document.getElementById('a-rate').textContent = rate + '%';
+}
+
+function toggleAutoDetect() {
+  const btn = document.getElementById('auto-btn');
+  const pulse = document.getElementById('auto-pulse');
+  const status = document.getElementById('auto-status-text');
+
+  if (!autoRunning) {
+    autoRunning = true;
+    btn.textContent = 'STOP AUTO-DETECT';
+    btn.style.borderColor = 'rgba(255,45,85,0.4)';
+    btn.style.color = '#ff2d55';
+    pulse.classList.add('active');
+    status.textContent = 'RUNNING — analyzing every 2s';
+    status.style.color = '#00ff9d';
+    runOneAutoTxn();
+    autoTimer = setInterval(runOneAutoTxn, 2000);
+  } else {
+    autoRunning = false;
+    clearInterval(autoTimer);
+    btn.textContent = 'START AUTO-DETECT';
+    btn.style.borderColor = 'rgba(0,200,255,0.3)';
+    btn.style.color = '#00c8ff';
+    pulse.classList.remove('active');
+    status.textContent = 'STOPPED';
+    status.style.color = '#4a6a7a';
+  }
+}
+
+async function burstSimulate() {
+  // Try real Flask burst endpoint first
+  try {
+    const resp = await Promise.race([
+      fetch('http://localhost:5000/api/simulate/bulk', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({count:10})
+      }),
+      new Promise((_,r) => setTimeout(() => r(new Error('timeout')), 2000))
+    ]);
+    if (resp.ok) {
+      const data = await resp.json();
+      data.transactions.forEach(t => {
+        renderAutoRow(t.transaction, t.result, t.timestamp);
+        updateAutoCounts(t.result.verdict);
+      });
+      document.getElementById('a-source').textContent = 'source: Flask API (real backend)';
+      return;
+    }
+  } catch(e) {}
+
+  // Fallback: generate 10 locally
+  for (let i = 0; i < 10; i++) {
+    const txn = generateLocalTxn();
+    const result = computeRisk(txn);
+    renderAutoRow(txn, result, new Date().toISOString().slice(0,19));
+    updateAutoCounts(result.verdict);
+  }
+  document.getElementById('a-source').textContent = 'source: local JS engine';
+}
+
+// Local fallback transaction generator (mirrors Python logic)
+function generateLocalTxn() {
+  const r = Math.random();
+  const merchants = ['grocery_store','restaurant','fuel_station','electronics','wire_transfer','online_shopping'];
+  if (r < 0.55) {
+    return { amount: Math.floor(Math.random()*5000+100), merchant: merchants[Math.floor(Math.random()*3)],
+      new_beneficiary:false, copy_paste:false, otp_retry:false, screen_sharing:false,
+      app_switching:false, typing_speed_wpm:40, location_jump_km:5, txn_velocity:1, unusual_hour:false };
+  } else if (r < 0.75) {
+    return { amount: Math.floor(Math.random()*50000+10000), merchant: merchants[3],
+      new_beneficiary:true, copy_paste:Math.random()>0.3, otp_retry:Math.random()>0.5,
+      screen_sharing:false, app_switching:true, typing_speed_wpm:110,
+      location_jump_km:400, txn_velocity:4, unusual_hour:false };
+  } else {
+    return { amount: Math.floor(Math.random()*200000+50000), merchant: 'wire_transfer',
+      new_beneficiary:true, copy_paste:true, otp_retry:true, screen_sharing:true,
+      app_switching:true, typing_speed_wpm:160, location_jump_km:1200, txn_velocity:8, unusual_hour:true };
+  }
+}
+</script>
+
 <!-- Notification -->
 <div class="notif" id="notif">
   <div class="notif-icon" id="notif-icon">🔔</div>

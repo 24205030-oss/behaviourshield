@@ -183,6 +183,124 @@ def stats():
 
 
 # ─────────────────────────────────────────
+#  AUTO-SIMULATION ENGINE
+#  Generates realistic random transactions
+#  so the system detects fraud automatically
+# ─────────────────────────────────────────
+import random
+
+MERCHANTS = ["grocery_store", "electronics", "wire_transfer", "atm_withdrawal",
+             "online_shopping", "fuel_station", "restaurant", "foreign_exchange"]
+LOCATIONS = ["same_city", "same_city", "same_city", "different_state",
+             "foreign_country", "impossible_jump"]
+
+def generate_transaction():
+    """Generates a realistic random bank transaction with behavioural signals."""
+    fraud_roll = random.random()
+
+    if fraud_roll < 0.55:
+        # Normal transaction (55%)
+        return {
+            "amount": random.randint(100, 5000),
+            "merchant": random.choice(["grocery_store", "restaurant", "fuel_station"]),
+            "new_beneficiary": False,
+            "copy_paste": False,
+            "otp_retry": False,
+            "screen_sharing": False,
+            "app_switching": False,
+            "typing_speed_wpm": random.randint(30, 70),
+            "location_jump_km": random.randint(0, 10),
+            "txn_velocity": random.randint(1, 2),
+            "unusual_hour": False,
+            "_sim_type": "normal"
+        }
+    elif fraud_roll < 0.75:
+        # Suspicious transaction (20%)
+        return {
+            "amount": random.randint(10000, 60000),
+            "merchant": random.choice(["electronics", "online_shopping"]),
+            "new_beneficiary": True,
+            "copy_paste": random.random() > 0.3,
+            "otp_retry": random.random() > 0.5,
+            "screen_sharing": False,
+            "app_switching": True,
+            "typing_speed_wpm": random.randint(80, 130),
+            "location_jump_km": random.randint(200, 600),
+            "txn_velocity": random.randint(3, 5),
+            "unusual_hour": random.random() > 0.6,
+            "_sim_type": "suspicious"
+        }
+    else:
+        # Fraud transaction (25%)
+        return {
+            "amount": random.randint(50000, 250000),
+            "merchant": random.choice(["wire_transfer", "foreign_exchange"]),
+            "new_beneficiary": True,
+            "copy_paste": True,
+            "otp_retry": True,
+            "screen_sharing": random.random() > 0.4,
+            "app_switching": True,
+            "typing_speed_wpm": random.randint(130, 200),
+            "location_jump_km": random.randint(600, 2000),
+            "txn_velocity": random.randint(5, 10),
+            "unusual_hour": random.random() > 0.4,
+            "_sim_type": "fraud"
+        }
+
+
+@app.route("/api/simulate", methods=["GET"])
+def simulate_one():
+    """Generate and analyze one random transaction automatically."""
+    txn = generate_transaction()
+    sim_type = txn.pop("_sim_type", "unknown")
+    result = compute_risk(txn)
+
+    # Log it
+    entry = {
+        "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "input": txn,
+        "result": result,
+        "auto_generated": True,
+        "sim_type": sim_type
+    }
+    transaction_log.append(entry)
+
+    return jsonify({
+        "transaction": txn,
+        "result": result,
+        "auto_generated": True,
+        "sim_type": sim_type,
+        "timestamp": entry["timestamp"]
+    })
+
+
+@app.route("/api/simulate/bulk", methods=["POST"])
+def simulate_bulk():
+    """Generate N transactions at once for demo burst."""
+    n = min(request.get_json(silent=True, force=True).get("count", 5), 20)
+    results = []
+    for _ in range(n):
+        txn = generate_transaction()
+        sim_type = txn.pop("_sim_type", "unknown")
+        result = compute_risk(txn)
+        entry = {
+            "timestamp": time.strftime("%Y-%m-%dT%H:%M:%S"),
+            "input": txn,
+            "result": result,
+            "auto_generated": True,
+            "sim_type": sim_type
+        }
+        transaction_log.append(entry)
+        results.append({
+            "transaction": txn,
+            "result": result,
+            "sim_type": sim_type,
+            "timestamp": entry["timestamp"]
+        })
+    return jsonify({"generated": len(results), "transactions": results})
+
+
+# ─────────────────────────────────────────
 #  BUILT-IN DEMO UI  (no separate HTML file needed)
 # ─────────────────────────────────────────
 DEMO_HTML = """
