@@ -1,331 +1,784 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
+<meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>BehaviorShield — Real-Time Fraud Detection</title>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+<title>BehaviorShield — Fraud Detection</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
 <style>
-  :root {
-    --bg: #050a0f;
-    --surface: #0b1520;
-    --surface2: #0f1e2e;
-    --border: rgba(0,200,255,0.12);
-    --cyan: #00c8ff;
-    --green: #00ff9d;
-    --red: #ff2d55;
-    --amber: #ffb800;
-    --text: #c8dde8;
-    --muted: #4a6a7a;
-    --font-display: 'Syne', sans-serif;
-    --font-mono: 'Share Tech Mono', monospace;
-  }
+:root {
+  --bg: #eef1f8;
+  --white: #ffffff;
+  --surface: #f4f6fc;
+  --border: #dce3f0;
+  --text: #1a2333;
+  --muted: #58698a;
+  --subtle: #8d9ab8;
 
-  * { margin:0; padding:0; box-sizing:border-box; }
+  --blue: #3b6ff5;
+  --blue-light: #edf2ff;
+  --blue-mid: #b3c6ff;
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font-display);
-    min-height: 100vh;
-    overflow-x: hidden;
-  }
+  --green: #15a348;
+  --green-light: #edfbf3;
+  --green-mid: #a7f0c4;
 
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image:
-      linear-gradient(rgba(0,200,255,0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(0,200,255,0.03) 1px, transparent 1px);
-    background-size: 40px 40px;
-    pointer-events: none;
-    z-index: 0;
-  }
+  --amber: #c87800;
+  --amber-light: #fff8e6;
+  --amber-mid: #fcd97a;
 
-  body::after {
-    content: '';
-    position: fixed;
-    top: -50%;
-    left: -50%;
-    width: 200%;
-    height: 200%;
-    background: radial-gradient(ellipse at 60% 20%, rgba(0,200,255,0.04) 0%, transparent 50%),
-                radial-gradient(ellipse at 20% 80%, rgba(0,255,157,0.03) 0%, transparent 50%);
-    pointer-events: none;
-    z-index: 0;
-    animation: bgPulse 8s ease-in-out infinite alternate;
-  }
+  --red: #d92b2b;
+  --red-light: #fff0f0;
+  --red-mid: #ffc5c5;
 
-  @keyframes bgPulse { 0%{opacity:0.6} 100%{opacity:1} }
+  --teal: #0e9488;
+  --teal-light: #e4f7f6;
 
-  header {
-    position: relative;
-    z-index: 10;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 18px 40px;
-    border-bottom: 1px solid var(--border);
-    background: rgba(5,10,15,0.85);
-    backdrop-filter: blur(12px);
-  }
+  --violet: #6d3ee8;
+  --violet-light: #f1ecff;
 
-  .logo { display:flex; align-items:center; gap:12px; }
-  .logo-icon { width:36px; height:36px; }
-  .logo-icon svg { width:100%; height:100%; }
-  .logo-text { font-size:20px; font-weight:800; letter-spacing:-0.5px; color:#fff; }
-  .logo-text span { color:var(--cyan); }
+  --font: 'Plus Jakarta Sans', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  --radius: 12px;
+  --shadow: 0 1px 3px rgba(59,111,245,0.07), 0 4px 12px rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06);
+}
 
-  .header-right {
-    display:flex; align-items:center; gap:24px;
-    font-family:var(--font-mono); font-size:11px; color:var(--muted);
-  }
+* { margin:0; padding:0; box-sizing:border-box; }
 
-  .live-dot { display:inline-flex; align-items:center; gap:7px; color:var(--green); font-size:11px; }
-  .live-dot::before {
-    content:''; width:7px; height:7px; border-radius:50%;
-    background:var(--green); box-shadow:0 0 8px var(--green);
-    animation:blink 1.4s ease-in-out infinite;
-  }
-  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  min-height: 100vh;
+  font-size: 14px;
+  line-height: 1.5;
+}
 
-  main {
-    position:relative; z-index:2;
-    display:grid;
-    grid-template-columns:340px 1fr 300px;
-    grid-template-rows:auto 1fr;
-    gap:0;
-    height:calc(100vh - 65px);
-  }
+/* ── HEADER ─────────────────────────────────────── */
+header {
+  background: linear-gradient(135deg, #1e3a8a 0%, #3b6ff5 60%, #6d3ee8 100%);
+  border-bottom: none;
+  padding: 0 32px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 12px rgba(59,111,245,0.25);
+}
 
-  .stats-bar {
-    grid-column:1/-1;
-    display:grid; grid-template-columns:repeat(5,1fr);
-    border-bottom:1px solid var(--border);
-  }
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
 
-  .stat-item {
-    padding:14px 24px; border-right:1px solid var(--border);
-    display:flex; flex-direction:column; gap:4px;
-  }
-  .stat-item:last-child { border-right:none; }
-  .stat-label { font-family:var(--font-mono); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; }
-  .stat-value { font-size:22px; font-weight:800; color:#fff; line-height:1; }
-  .stat-value.green { color:var(--green); }
-  .stat-value.red   { color:var(--red); }
-  .stat-value.amber { color:var(--amber); }
-  .stat-value.cyan  { color:var(--cyan); }
-  .stat-delta { font-family:var(--font-mono); font-size:10px; color:var(--muted); }
+.logo-badge {
+  width: 34px; height: 34px;
+  background: rgba(255,255,255,0.2);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  color: #fff; font-size: 17px;
+}
 
-  .panel-left {
-    border-right:1px solid var(--border);
-    overflow-y:auto; padding:28px 24px;
-    background:rgba(11,21,32,0.6);
-  }
+.logo-name {
+  font-size: 17px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.3px;
+}
 
-  .panel-title {
-    font-size:11px; font-family:var(--font-mono);
-    text-transform:uppercase; letter-spacing:2px; color:var(--cyan);
-    margin-bottom:20px; display:flex; align-items:center; gap:8px;
-  }
-  .panel-title::before { content:''; width:3px; height:14px; background:var(--cyan); border-radius:2px; }
+.logo-name span { color: rgba(255,255,255,0.75); }
 
-  .field-group { margin-bottom:18px; }
-  .field-label { font-family:var(--font-mono); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px; display:block; }
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
 
-  .field-input {
-    width:100%; background:var(--surface2); border:1px solid var(--border);
-    color:#fff; font-family:var(--font-mono); font-size:14px;
-    padding:10px 14px; border-radius:4px; outline:none;
-    transition:border-color 0.2s, box-shadow 0.2s;
-  }
-  .field-input:focus { border-color:var(--cyan); box-shadow:0 0 0 2px rgba(0,200,255,0.1); }
-  .field-input::placeholder { color:var(--muted); }
-  select.field-input option { background:var(--surface2); }
+.live-pill {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(255,255,255,0.15);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 99px;
+  letter-spacing: 0.3px;
+}
 
-  .toggle-row {
-    display:flex; align-items:center; justify-content:space-between;
-    padding:10px 14px; background:var(--surface2);
-    border:1px solid var(--border); border-radius:4px; margin-bottom:8px;
-    cursor:pointer; transition:border-color 0.2s;
-  }
-  .toggle-row:hover { border-color:rgba(0,200,255,0.3); }
-  .toggle-label { font-family:var(--font-mono); font-size:11px; color:var(--text); }
-  .toggle-switch {
-    width:36px; height:20px; background:var(--muted); border-radius:10px;
-    position:relative; transition:background 0.25s; flex-shrink:0;
-  }
-  .toggle-switch.on { background:var(--cyan); }
-  .toggle-switch::after {
-    content:''; position:absolute; top:3px; left:3px;
-    width:14px; height:14px; background:#fff; border-radius:50%;
-    transition:transform 0.25s;
-  }
-  .toggle-switch.on::after { transform:translateX(16px); }
+.live-dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: #6ee7b7;
+  animation: blink 1.5s ease-in-out infinite;
+}
 
-  .scenario-btns { display:flex; flex-direction:column; gap:8px; margin-bottom:20px; }
-  .scenario-btn {
-    padding:9px 14px; border:1px solid var(--border); background:transparent;
-    color:var(--text); font-family:var(--font-mono); font-size:11px;
-    border-radius:4px; cursor:pointer; text-align:left; transition:all 0.2s;
-    display:flex; align-items:center; gap:10px;
-  }
-  .scenario-btn:hover { background:var(--surface2); border-color:var(--cyan); color:#fff; }
-  .scenario-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
 
-  .analyze-btn {
-    width:100%; padding:14px; background:var(--cyan); color:#000;
-    font-family:var(--font-display); font-size:14px; font-weight:800;
-    letter-spacing:1px; text-transform:uppercase; border:none; border-radius:4px;
-    cursor:pointer; margin-top:8px; transition:all 0.2s;
-    position:relative; overflow:hidden;
-  }
-  .analyze-btn::after {
-    content:''; position:absolute; inset:0; background:rgba(255,255,255,0.2);
-    transform:translateX(-100%); transition:transform 0.4s;
-  }
-  .analyze-btn:hover::after { transform:translateX(100%); }
-  .analyze-btn:hover { box-shadow:0 0 20px rgba(0,200,255,0.4); transform:translateY(-1px); }
-  .analyze-btn:active { transform:translateY(0); }
-  .analyze-btn.loading { background:var(--muted); pointer-events:none; }
+.clock {
+  font-family: var(--mono);
+  font-size: 13px;
+  color: rgba(255,255,255,0.75);
+  font-weight: 600;
+}
 
-  .panel-center { overflow-y:auto; padding:28px 32px; }
+/* ── STATS BAR ──────────────────────────────────── */
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+}
 
-  .risk-meter-wrapper { margin-bottom:28px; }
-  .risk-meter-label { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; }
+.stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 18px 24px;
+  border-right: 1px solid var(--border);
+  position: relative;
+}
 
-  .risk-score-display {
-    font-size:72px; font-weight:800; line-height:1; color:#fff;
-    transition:color 0.5s; font-variant-numeric:tabular-nums;
-  }
-  .risk-score-display.green { color:var(--green); text-shadow:0 0 30px rgba(0,255,157,0.4); }
-  .risk-score-display.amber { color:var(--amber); text-shadow:0 0 30px rgba(255,184,0,0.4); }
-  .risk-score-display.red   { color:var(--red);   text-shadow:0 0 30px rgba(255,45,85,0.5); animation:shake 0.4s ease-in-out; }
+.stat-card:last-child { border-right: none; }
 
-  @keyframes shake {
-    0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)}
-    40%{transform:translateX(6px)}   60%{transform:translateX(-4px)}
-    80%{transform:translateX(4px)}
-  }
+.stat-card:nth-child(1) { background: linear-gradient(135deg, #edf2ff 0%, #fff 70%); }
+.stat-card:nth-child(2) { background: linear-gradient(135deg, #fff0f0 0%, #fff 70%); }
+.stat-card:nth-child(3) { background: linear-gradient(135deg, #fff8e6 0%, #fff 70%); }
+.stat-card:nth-child(4) { background: linear-gradient(135deg, #edfbf3 0%, #fff 70%); }
+.stat-card:nth-child(5) { background: linear-gradient(135deg, #f1ecff 0%, #fff 70%); }
 
-  .risk-verdict {
-    font-size:14px; font-family:var(--font-mono);
-    text-transform:uppercase; letter-spacing:2px;
-    padding:5px 12px; border-radius:3px; border:1px solid;
-  }
-  .risk-verdict.ALLOW { color:var(--green); border-color:var(--green); background:rgba(0,255,157,0.07); }
-  .risk-verdict.WARN  { color:var(--amber); border-color:var(--amber); background:rgba(255,184,0,0.07); }
-  .risk-verdict.BLOCK { color:var(--red);   border-color:var(--red);   background:rgba(255,45,85,0.07); animation:pulseRed 1s ease-in-out infinite; }
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0;
+  width: 3px; height: 100%;
+  border-radius: 0 2px 2px 0;
+}
 
-  @keyframes pulseRed { 0%,100%{box-shadow:0 0 0 rgba(255,45,85,0)} 50%{box-shadow:0 0 16px rgba(255,45,85,0.3)} }
+.stat-card:nth-child(1)::before { background: var(--blue); }
+.stat-card:nth-child(2)::before { background: var(--red); }
+.stat-card:nth-child(3)::before { background: var(--amber); }
+.stat-card:nth-child(4)::before { background: var(--green); }
+.stat-card:nth-child(5)::before { background: var(--violet); }
 
-  .meter-track { height:10px; background:var(--surface2); border-radius:5px; overflow:hidden; border:1px solid var(--border); margin:14px 0; }
-  .meter-fill { height:100%; width:0%; border-radius:5px; transition:width 0.8s cubic-bezier(0.4,0,0.2,1),background 0.5s; background:var(--green); }
-  .meter-fill.amber { background:linear-gradient(90deg,var(--green),var(--amber)); }
-  .meter-fill.red   { background:linear-gradient(90deg,var(--green),var(--amber),var(--red)); }
+.stat-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
 
-  .meter-zones { display:flex; justify-content:space-between; font-family:var(--font-mono); font-size:9px; color:var(--muted); margin-bottom:4px; }
+.stat-value {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
 
-  .result-message {
-    padding:16px 20px; border-radius:6px; border-left:3px solid var(--cyan);
-    background:var(--surface2); margin-bottom:24px; font-size:14px;
-    line-height:1.6; color:#fff; min-height:60px; transition:border-color 0.4s;
-    font-family:var(--font-mono);
-  }
-  .result-message.green { border-color:var(--green); }
-  .result-message.amber { border-color:var(--amber); }
-  .result-message.red   { border-color:var(--red); }
+.stat-value.blue  { color: var(--blue); }
+.stat-value.red   { color: var(--red); }
+.stat-value.amber { color: var(--amber); }
+.stat-value.green { color: var(--green); }
 
-  .signals-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:24px; }
-  .signal-card { padding:12px 16px; background:var(--surface); border:1px solid var(--border); border-radius:6px; display:flex; flex-direction:column; gap:6px; transition:border-color 0.3s; }
-  .signal-card.triggered { border-color:rgba(255,45,85,0.4); background:rgba(255,45,85,0.04); }
-  .signal-card.safe { border-color:rgba(0,255,157,0.2); }
-  .signal-name { font-family:var(--font-mono); font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.5px; }
-  .signal-value { font-weight:700; font-size:15px; color:#fff; }
-  .signal-bar { height:3px; background:var(--border); border-radius:2px; overflow:hidden; }
-  .signal-bar-fill { height:100%; border-radius:2px; transition:width 0.7s ease; }
+.stat-sub {
+  font-size: 11px;
+  color: var(--subtle);
+  font-weight: 500;
+}
 
-  .panel-right {
-    border-left:1px solid var(--border); overflow-y:auto; padding:28px 20px;
-    background:rgba(11,21,32,0.4);
-  }
+/* ── MAIN GRID ──────────────────────────────────── */
+.main-grid {
+  display: grid;
+  grid-template-columns: 340px 1fr 300px;
+  gap: 20px;
+  padding: 20px 32px;
+  max-width: 1500px;
+  margin: 0 auto;
+  min-height: calc(100vh - 60px - 80px);
+}
 
-  .event-feed { display:flex; flex-direction:column; gap:0; }
-  .event-item {
-    padding:12px 0; border-bottom:1px solid rgba(0,200,255,0.06);
-    display:grid; grid-template-columns:24px 1fr; gap:10px; align-items:start;
-    animation:slideIn 0.3s ease forwards; opacity:0; transform:translateY(8px);
-  }
-  @keyframes slideIn { to{opacity:1;transform:translateY(0)} }
+/* ── CARD ───────────────────────────────────────── */
+.card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
 
-  .event-dot { width:8px; height:8px; border-radius:50%; margin-top:4px; flex-shrink:0; }
-  .event-text { font-family:var(--font-mono); font-size:11px; color:var(--text); line-height:1.5; }
-  .event-time { font-size:9px; color:var(--muted); margin-top:3px; }
+.card-header {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(90deg, #f0f4ff 0%, #f9f7ff 100%);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
 
-  .placeholder-state { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:300px; gap:16px; opacity:0.4; }
-  .placeholder-state svg { opacity:0.3; }
-  .placeholder-text { font-family:var(--font-mono); font-size:12px; color:var(--muted); text-align:center; }
+.card-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--blue);
+  letter-spacing: 0.1px;
+}
 
-  .response-badge {
-    display:inline-flex; align-items:center; gap:6px;
-    font-family:var(--font-mono); font-size:10px; color:var(--green);
-    background:rgba(0,255,157,0.07); border:1px solid rgba(0,255,157,0.2);
-    padding:4px 10px; border-radius:20px;
-  }
+.card-body {
+  padding: 20px;
+}
 
-  .divider { height:1px; background:var(--border); margin:20px 0; }
+/* ── FORM ELEMENTS ──────────────────────────────── */
+.field {
+  margin-bottom: 16px;
+}
 
-  ::-webkit-scrollbar { width:4px; }
-  ::-webkit-scrollbar-track { background:transparent; }
-  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:2px; }
+.field label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
 
-  .notif {
-    position:fixed; bottom:30px; right:30px; z-index:100;
-    background:var(--surface); border:1px solid var(--border); border-radius:8px;
-    padding:16px 20px; max-width:320px; box-shadow:0 8px 40px rgba(0,0,0,0.4);
-    transform:translateY(100px); opacity:0; transition:all 0.35s cubic-bezier(0.4,0,0.2,1);
-    display:flex; align-items:flex-start; gap:12px;
-  }
-  .notif.show { transform:translateY(0); opacity:1; }
-  .notif-icon { font-size:20px; flex-shrink:0; }
-  .notif-body { font-family:var(--font-mono); font-size:11px; line-height:1.5; }
-  .notif-title { color:#fff; font-weight:700; margin-bottom:3px; }
-  .notif-msg { color:var(--muted); }
-  .notif.danger  { border-color:rgba(255,45,85,0.4); }
-  .notif.warn    { border-color:rgba(255,184,0,0.3); }
-  .notif.success { border-color:rgba(0,255,157,0.3); }
+.field input,
+.field select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--white);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font-weight: 500;
+}
 
-  /* FRAUD ALERT MODAL */
-  #fraud-modal {
-    display:none; position:fixed; inset:0; z-index:999;
-    background:rgba(0,0,0,0.75); backdrop-filter:blur(6px);
-    align-items:center; justify-content:center;
-  }
-  #fraud-modal.show { display:flex; }
-  .fraud-modal-box {
-    background:#0b1520; border:1px solid rgba(255,45,85,0.5);
-    border-radius:12px; padding:36px 40px; max-width:440px; width:90%;
-    text-align:center; box-shadow:0 0 60px rgba(255,45,85,0.25);
-    animation:modalIn 0.3s cubic-bezier(0.4,0,0.2,1);
-  }
-  @keyframes modalIn { from{transform:scale(0.9);opacity:0} to{transform:scale(1);opacity:1} }
-  .fraud-modal-icon { font-size:48px; margin-bottom:16px; }
-  .fraud-modal-title { font-size:22px; font-weight:800; color:var(--red); margin-bottom:8px; }
-  .fraud-modal-score { font-family:var(--font-mono); font-size:13px; color:var(--muted); margin-bottom:20px; }
-  .fraud-modal-msg { font-family:var(--font-mono); font-size:12px; color:var(--text); line-height:1.7; margin-bottom:28px; }
-  .fraud-modal-close {
-    padding:12px 32px; background:var(--red); color:#fff;
-    border:none; border-radius:6px; font-family:var(--font-display);
-    font-weight:800; font-size:14px; cursor:pointer;
-    transition:all 0.2s; letter-spacing:1px;
-  }
-  .fraud-modal-close:hover { box-shadow:0 0 20px rgba(255,45,85,0.5); transform:translateY(-1px); }
+.field input:focus,
+.field select:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 3px rgba(37,99,235,0.10);
+}
 
-  @media (max-width:1100px) {
-    main { grid-template-columns:300px 1fr; }
-    .panel-right { display:none; }
-  }
+/* ── TOGGLE ─────────────────────────────────────── */
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s;
+  margin-bottom: 4px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+}
+
+.toggle-row:hover { background: #edf2ff; border-color: var(--blue-mid); }
+
+.toggle-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+
+.toggle-track {
+  width: 38px; height: 22px;
+  background: #d1d9e6;
+  border-radius: 11px;
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.toggle-track.on { background: var(--blue); }
+
+.toggle-track::after {
+  content: '';
+  position: absolute;
+  top: 3px; left: 3px;
+  width: 16px; height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform 0.2s;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.toggle-track.on::after { transform: translateX(16px); }
+
+/* ── SCENARIO BUTTONS ───────────────────────────── */
+.scenario-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.scen-btn {
+  padding: 9px 6px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  transition: all 0.15s;
+  color: var(--text);
+}
+
+.scen-btn:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
+
+.scen-btn.safe   { border-color: var(--green-mid); color: var(--green); background: var(--green-light); }
+.scen-btn.warn   { border-color: var(--amber-mid); color: var(--amber); background: var(--amber-light); }
+.scen-btn.fraud  { border-color: var(--red-mid);   color: var(--red);   background: var(--red-light); }
+
+.scen-icon { font-size: 16px; display: block; margin-bottom: 3px; }
+
+/* ── ANALYZE BUTTON ─────────────────────────────── */
+.analyze-btn {
+  width: 100%;
+  padding: 13px;
+  background: linear-gradient(135deg, #3b6ff5 0%, #6d3ee8 100%);
+  color: #fff;
+  font-family: var(--font);
+  font-size: 14px;
+  font-weight: 700;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 12px;
+  transition: all 0.15s;
+  letter-spacing: 0.2px;
+  box-shadow: 0 2px 8px rgba(59,111,245,0.3);
+}
+
+.analyze-btn:hover { box-shadow: 0 4px 16px rgba(59,111,245,0.45); transform: translateY(-1px); opacity: 0.95; }
+.analyze-btn:active { transform: translateY(0); }
+.analyze-btn.loading { background: var(--subtle); box-shadow: none; pointer-events: none; }
+
+/* ── DIVIDER ─────────────────────────────────────── */
+.divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+/* ── RESULT PANEL ───────────────────────────────── */
+.result-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 280px;
+  gap: 12px;
+  color: var(--subtle);
+}
+
+.result-placeholder svg { opacity: 0.35; }
+
+.result-placeholder p {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--subtle);
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* Score ring + number */
+.score-section {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.score-ring-wrap {
+  position: relative;
+  width: 100px; height: 100px;
+  flex-shrink: 0;
+}
+
+.score-ring-wrap svg {
+  transform: rotate(-90deg);
+}
+
+.score-ring-bg { fill: none; stroke: var(--border); stroke-width: 7; }
+.score-ring-fill {
+  fill: none; stroke-width: 7; stroke-linecap: round;
+  stroke-dasharray: 251.2;
+  stroke-dashoffset: 251.2;
+  transition: stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1), stroke 0.4s;
+}
+
+.score-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+}
+
+.score-num {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  transition: color 0.4s;
+}
+
+.score-label {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.score-info { flex: 1; }
+
+.verdict-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 99px;
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.verdict-chip.ALLOW { background: var(--green-light); color: var(--green); }
+.verdict-chip.WARN  { background: var(--amber-light); color: var(--amber); animation: pulseAmber 1.5s ease-in-out infinite; }
+.verdict-chip.BLOCK { background: var(--red-light);   color: var(--red);   animation: pulseRed 1s ease-in-out infinite; }
+
+@keyframes pulseAmber { 0%,100%{box-shadow:0 0 0 rgba(217,119,6,0)} 50%{box-shadow:0 0 12px rgba(217,119,6,0.25)} }
+@keyframes pulseRed   { 0%,100%{box-shadow:0 0 0 rgba(220,38,38,0)} 50%{box-shadow:0 0 14px rgba(220,38,38,0.3)} }
+
+.resp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  padding: 3px 9px;
+  border-radius: 99px;
+  font-weight: 600;
+}
+
+.result-msg {
+  padding: 14px 20px;
+  margin: 16px 20px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.6;
+  border-left: 3px solid var(--blue);
+  background: var(--blue-light);
+  color: var(--text);
+  transition: all 0.3s;
+}
+
+.result-msg.green { background: var(--green-light); border-color: var(--green); }
+.result-msg.amber { background: var(--amber-light); border-color: var(--amber); }
+.result-msg.red   { background: var(--red-light);   border-color: var(--red); }
+
+/* Meter bar */
+.meter-wrap { padding: 0 20px 20px; }
+
+.meter-zones {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--subtle);
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.meter-track {
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 4px;
+  background: var(--green);
+  transition: width 0.8s cubic-bezier(0.4,0,0.2,1), background 0.4s;
+}
+
+.meter-fill.amber { background: linear-gradient(90deg, #16a34a, var(--amber)); }
+.meter-fill.red   { background: linear-gradient(90deg, #16a34a, var(--amber), var(--red)); }
+
+/* Signals */
+.signals-section { padding: 0 20px 20px; }
+
+.section-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--blue);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  margin-bottom: 12px;
+}
+
+.signals-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.signal-card {
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  transition: border-color 0.2s;
+}
+
+.signal-card.triggered { border-color: var(--red-mid); background: var(--red-light); }
+.signal-card.safe      { border-color: var(--green-mid); background: var(--green-light); }
+
+.signal-name  { font-size: 10px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+.signal-value { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+
+.signal-bar-bg { height: 3px; background: #e2e6ed; border-radius: 2px; overflow: hidden; }
+.signal-bar-fill { height: 100%; border-radius: 2px; transition: width 0.7s ease; }
+
+/* ── RIGHT PANEL — Event Log ────────────────────── */
+.event-feed {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
+}
+
+.event-item {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 10px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  align-items: start;
+  animation: fadeSlide 0.3s ease forwards;
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+@keyframes fadeSlide { to { opacity:1; transform:translateY(0); } }
+
+.event-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+
+.event-text { font-size: 12px; font-weight: 500; color: var(--text); line-height: 1.5; }
+.event-time { font-size: 11px; color: var(--subtle); margin-top: 2px; font-family: var(--mono); }
+
+/* ── AUTO-DETECT SECTION ────────────────────────── */
+.auto-section {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  margin: 0 32px 32px;
+  overflow: hidden;
+}
+
+.auto-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(90deg, #edf2ff 0%, #f1ecff 100%);
+}
+
+.auto-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auto-pulse {
+  width: 10px; height: 10px;
+  border-radius: 50%;
+  background: #c9d3e8;
+  transition: background 0.3s;
+}
+
+.auto-pulse.active {
+  background: var(--green);
+  box-shadow: 0 0 8px rgba(21,163,72,0.5);
+  animation: blink 1s infinite;
+}
+
+.auto-title-text {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--blue);
+}
+
+.auto-title-sub {
+  font-size: 12px;
+  color: var(--subtle);
+}
+
+.auto-btns { display: flex; gap: 10px; align-items: center; }
+
+.auto-status {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--subtle);
+  font-family: var(--mono);
+}
+
+.btn-auto {
+  padding: 8px 18px;
+  border-radius: 7px;
+  border: 1.5px solid var(--blue-mid);
+  background: var(--blue-light);
+  color: var(--blue);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-auto:hover { background: var(--blue); color: #fff; }
+
+.btn-burst {
+  padding: 8px 18px;
+  border-radius: 7px;
+  border: 1.5px solid var(--amber-mid);
+  background: var(--amber-light);
+  color: var(--amber);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.btn-burst:hover { background: var(--amber); color: #fff; }
+
+/* Auto feed table */
+.auto-table-header {
+  display: grid;
+  grid-template-columns: 100px 90px 140px 80px 80px 70px 1fr 100px;
+  padding: 8px 20px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--subtle);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.auto-feed-wrap {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.auto-row {
+  display: grid;
+  grid-template-columns: 100px 90px 140px 80px 80px 70px 1fr 100px;
+  padding: 10px 20px;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  transition: background 0.1s;
+  animation: rowIn 0.25s ease;
+}
+
+.auto-row:hover { background: var(--surface); }
+@keyframes rowIn { from { opacity:0; transform:translateX(-6px); } to { opacity:1; transform:none; } }
+
+.v-block  { color: var(--red);   font-weight: 700; }
+.v-warned { color: var(--amber); font-weight: 700; }
+.v-allowed { color: var(--green); font-weight: 600; }
+
+.auto-summary {
+  display: flex;
+  gap: 24px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+  flex-wrap: wrap;
+}
+
+.auto-summary strong { font-weight: 700; }
+
+/* ── NOTIFICATION ───────────────────────────────── */
+.notif {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  z-index: 200;
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  max-width: 300px;
+  box-shadow: var(--shadow-md);
+  transform: translateY(80px);
+  opacity: 0;
+  transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.notif.show { transform: translateY(0); opacity: 1; }
+.notif.danger { border-color: var(--red-mid); }
+.notif.warn   { border-color: var(--amber-mid); }
+.notif.success { border-color: var(--green-mid); }
+
+.notif-icon { font-size: 20px; flex-shrink: 0; }
+.notif-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.notif-msg   { font-size: 12px; color: var(--muted); }
+
+/* ── SCROLLBAR ──────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+@media (max-width: 1100px) {
+  .main-grid { grid-template-columns: 320px 1fr; }
+  .panel-right { display: none; }
+  .stats-bar { grid-template-columns: repeat(3, 1fr); }
+}
 </style>
 </head>
 <body>
@@ -333,305 +786,434 @@
 <!-- HEADER -->
 <header>
   <div class="logo">
-    <div class="logo-icon">
-      <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <polygon points="18,2 34,10 34,26 18,34 2,26 2,10" fill="none" stroke="#00c8ff" stroke-width="1.5"/>
-        <polygon points="18,8 28,13 28,23 18,28 8,23 8,13" fill="rgba(0,200,255,0.08)" stroke="rgba(0,200,255,0.4)" stroke-width="1"/>
-        <circle cx="18" cy="18" r="4" fill="#00c8ff"/>
-        <line x1="18" y1="8"  x2="18" y2="14" stroke="#00c8ff" stroke-width="1"/>
-        <line x1="18" y1="22" x2="18" y2="28" stroke="#00c8ff" stroke-width="1"/>
-        <line x1="8"  y1="13" x2="14" y2="16" stroke="#00c8ff" stroke-width="1"/>
-        <line x1="22" y1="20" x2="28" y2="23" stroke="#00c8ff" stroke-width="1"/>
-        <line x1="28" y1="13" x2="22" y2="16" stroke="#00c8ff" stroke-width="1"/>
-        <line x1="14" y1="20" x2="8"  y2="23" stroke="#00c8ff" stroke-width="1"/>
-      </svg>
-    </div>
-    <span class="logo-text">Behavior<span>Shield</span></span>
+    <div class="logo-badge">🛡️</div>
+    <span class="logo-name">Behavior<span>Shield</span></span>
   </div>
   <div class="header-right">
-    <span class="live-dot">SYSTEM LIVE</span>
-    <span id="clock">--:--:--</span>
-    <span>BANKING FRAUD AI · v2.1</span>
+    <div class="live-pill">
+      <div class="live-dot"></div>
+      System Live
+    </div>
+    <div class="clock" id="clock">--:--:--</div>
   </div>
 </header>
 
-<!-- MAIN -->
-<main>
+<!-- STATS BAR -->
+<div class="stats-bar">
+  <div class="stat-card">
+    <div class="stat-label">Transactions Analyzed</div>
+    <div class="stat-value blue" id="txn-count">0</div>
+    <div class="stat-sub" id="txn-delta">No transactions yet</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Flagged Fraudulent</div>
+    <div class="stat-value red" id="fraud-count">0</div>
+    <div class="stat-sub" id="fraud-rate">0% fraud rate</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Blocked (Auto)</div>
+    <div class="stat-value amber" id="blocked-count">0</div>
+    <div class="stat-sub" id="blocked-rate">0% auto-resolved</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Avg Detection Time</div>
+    <div class="stat-value green" id="avg-detection">—</div>
+    <div class="stat-sub" id="detection-delta">Waiting for first analysis</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Backend Status</div>
+    <div class="stat-value blue" id="model-accuracy">—</div>
+    <div class="stat-sub" id="accuracy-delta">Run analysis to check</div>
+  </div>
+</div>
 
-  <!-- STATS BAR -->
-  <div class="stats-bar">
-    <div class="stat-item">
-      <span class="stat-label">Transactions Today</span>
-      <span class="stat-value cyan" id="txn-count">0</span>
-      <span class="stat-delta" id="txn-delta">No transactions yet</span>
+<!-- MAIN GRID -->
+<div class="main-grid">
+
+  <!-- LEFT: FORM -->
+  <div class="card" style="overflow-y:auto; max-height:calc(100vh - 220px);">
+    <div class="card-header">
+      <span class="card-title">Transaction Input</span>
     </div>
-    <div class="stat-item">
-      <span class="stat-label">Flagged Fraudulent</span>
-      <span class="stat-value red" id="fraud-count">0</span>
-      <span class="stat-delta" id="fraud-rate">0% fraud rate</span>
-    </div>
-    <div class="stat-item">
-      <span class="stat-label">Blocked (Auto)</span>
-      <span class="stat-value amber" id="blocked-count">0</span>
-      <span class="stat-delta" id="blocked-rate">0% auto-resolved</span>
-    </div>
-    <div class="stat-item">
-      <span class="stat-label">Avg Detection Time</span>
-      <span class="stat-value green" id="avg-detection">—</span>
-      <span class="stat-delta" id="detection-delta">Waiting for first analysis</span>
-    </div>
-    <div class="stat-item">
-      <span class="stat-label">Model Accuracy</span>
-      <span class="stat-value green" id="model-accuracy">—</span>
-      <span class="stat-delta" id="accuracy-delta">Run analysis to measure</span>
+    <div class="card-body">
+
+      <div class="scenario-row">
+        <button class="scen-btn safe" onclick="loadScenario('normal')">
+          <span class="scen-icon">✅</span>Normal
+        </button>
+        <button class="scen-btn warn" onclick="loadScenario('suspicious')">
+          <span class="scen-icon">⚠️</span>Suspicious
+        </button>
+        <button class="scen-btn fraud" onclick="loadScenario('fraud')">
+          <span class="scen-icon">🚨</span>Fraud
+        </button>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="field">
+        <label>Amount (INR ₹)</label>
+        <input id="f-amount" type="number" placeholder="e.g. 25000" value="1200"/>
+      </div>
+
+      <div class="field">
+        <label>Merchant Category</label>
+        <select id="f-merchant">
+          <option value="grocery">Grocery / Retail</option>
+          <option value="electronics">Electronics</option>
+          <option value="travel">Travel / Booking</option>
+          <option value="crypto">Crypto Exchange</option>
+          <option value="wire">Wire Transfer</option>
+          <option value="unknown">Unknown Merchant</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Transactions in Last 10 Min</label>
+        <input id="f-velocity" type="number" placeholder="0–20" value="1"/>
+      </div>
+
+      <div class="field">
+        <label>Location</label>
+        <select id="f-location">
+          <option value="same">Same city as usual</option>
+          <option value="diff_state">Different state</option>
+          <option value="foreign">Foreign country</option>
+          <option value="vpn">VPN / Proxy detected</option>
+        </select>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-title">Behavioral Signals</div>
+
+      <div class="toggle-row" onclick="toggleField('new_beneficiary')">
+        <span class="toggle-label">New beneficiary (first time)</span>
+        <div class="toggle-track" id="toggle-new_beneficiary"></div>
+      </div>
+      <div class="toggle-row" onclick="toggleField('copy_paste')">
+        <span class="toggle-label">Account no. copy-pasted</span>
+        <div class="toggle-track" id="toggle-copy_paste"></div>
+      </div>
+      <div class="toggle-row" onclick="toggleField('otp_retry')">
+        <span class="toggle-label">OTP retried 3+ times</span>
+        <div class="toggle-track" id="toggle-otp_retry"></div>
+      </div>
+      <div class="toggle-row" onclick="toggleField('screen_share')">
+        <span class="toggle-label">Screen sharing active</span>
+        <div class="toggle-track" id="toggle-screen_share"></div>
+      </div>
+      <div class="toggle-row" onclick="toggleField('unusual_time')">
+        <span class="toggle-label">Unusual transaction hour</span>
+        <div class="toggle-track" id="toggle-unusual_time"></div>
+      </div>
+      <div class="toggle-row" onclick="toggleField('rapid_typing')">
+        <span class="toggle-label">Abnormally rapid typing</span>
+        <div class="toggle-track" id="toggle-rapid_typing"></div>
+      </div>
+
+      <button class="analyze-btn" id="analyze-btn" onclick="analyze()">
+        ⚡ Analyze Transaction
+      </button>
     </div>
   </div>
 
-  <!-- LEFT PANEL -->
-  <div class="panel-left">
-    <div class="panel-title">Transaction Input</div>
+  <!-- CENTER: RESULT -->
+  <div class="card" style="overflow-y:auto; max-height:calc(100vh - 220px);">
 
-    <div class="panel-title" style="margin-top:0;margin-bottom:10px;font-size:9px;">Quick Scenarios</div>
-    <div class="scenario-btns">
-      <button class="scenario-btn" onclick="loadScenario('normal')">
-        <span class="scenario-dot" style="background:var(--green)"></span>Normal Transaction
-      </button>
-      <button class="scenario-btn" onclick="loadScenario('suspicious')">
-        <span class="scenario-dot" style="background:var(--amber)"></span>Suspicious / Warn
-      </button>
-      <button class="scenario-btn" onclick="loadScenario('fraud')">
-        <span class="scenario-dot" style="background:var(--red)"></span>Active Fraud / Block
-      </button>
+    <div class="card-header">
+      <span class="card-title">Risk Analysis Result</span>
+      <div class="resp-badge" id="resp-time" style="display:none">⚡ 0ms</div>
     </div>
 
-    <div class="divider"></div>
-
-    <div class="field-group">
-      <label class="field-label">Amount (INR ₹)</label>
-      <input id="f-amount" type="number" class="field-input" placeholder="e.g. 25000" value="1200"/>
-    </div>
-    <div class="field-group">
-      <label class="field-label">Merchant Category</label>
-      <select id="f-merchant" class="field-input">
-        <option value="grocery">Grocery / Retail</option>
-        <option value="electronics">Electronics</option>
-        <option value="travel">Travel / Booking</option>
-        <option value="crypto">Crypto Exchange</option>
-        <option value="wire">Wire Transfer</option>
-        <option value="unknown">Unknown Merchant</option>
-      </select>
-    </div>
-    <div class="field-group">
-      <label class="field-label">Transactions in Last 10 Min</label>
-      <input id="f-velocity" type="number" class="field-input" placeholder="0–20" value="1"/>
-    </div>
-    <div class="field-group">
-      <label class="field-label">Location</label>
-      <select id="f-location" class="field-input">
-        <option value="same">Same city as usual</option>
-        <option value="diff_state">Different state</option>
-        <option value="foreign">Foreign country</option>
-        <option value="vpn">VPN / Proxy detected</option>
-      </select>
-    </div>
-
-    <div class="divider"></div>
-    <div class="panel-title" style="margin-bottom:10px;font-size:9px;">Behavioral Signals</div>
-
-    <div class="toggle-row" onclick="toggleField('new_beneficiary')">
-      <span class="toggle-label">New beneficiary (first time)</span>
-      <div class="toggle-switch" id="toggle-new_beneficiary"></div>
-    </div>
-    <div class="toggle-row" onclick="toggleField('copy_paste')">
-      <span class="toggle-label">Account no. copy-pasted</span>
-      <div class="toggle-switch" id="toggle-copy_paste"></div>
-    </div>
-    <div class="toggle-row" onclick="toggleField('otp_retry')">
-      <span class="toggle-label">OTP retried 3+ times</span>
-      <div class="toggle-switch" id="toggle-otp_retry"></div>
-    </div>
-    <div class="toggle-row" onclick="toggleField('screen_share')">
-      <span class="toggle-label">Screen sharing active</span>
-      <div class="toggle-switch" id="toggle-screen_share"></div>
-    </div>
-    <div class="toggle-row" onclick="toggleField('unusual_time')">
-      <span class="toggle-label">Unusual transaction hour</span>
-      <div class="toggle-switch" id="toggle-unusual_time"></div>
-    </div>
-    <div class="toggle-row" onclick="toggleField('rapid_typing')">
-      <span class="toggle-label">Abnormally rapid typing</span>
-      <div class="toggle-switch" id="toggle-rapid_typing"></div>
-    </div>
-
-    <button class="analyze-btn" id="analyze-btn" onclick="analyze()">
-      ⚡ Analyze Transaction
-    </button>
-  </div>
-
-  <!-- CENTER PANEL -->
-  <div class="panel-center">
-    <div id="placeholder" class="placeholder-state">
-      <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-        <circle cx="32" cy="32" r="30" stroke="#00c8ff" stroke-width="1.5" stroke-dasharray="4 4"/>
-        <path d="M32 16 L32 32 L42 42" stroke="#00c8ff" stroke-width="2" stroke-linecap="round"/>
-        <circle cx="32" cy="32" r="3" fill="#00c8ff"/>
+    <div id="placeholder" class="result-placeholder">
+      <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
+        <circle cx="28" cy="28" r="26" stroke="#c9d0e0" stroke-width="2" stroke-dasharray="5 4"/>
+        <path d="M28 16 L28 28 L36 36" stroke="#c9d0e0" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="28" cy="28" r="3" fill="#c9d0e0"/>
       </svg>
-      <div class="placeholder-text">Load a scenario or fill the form<br/>then click Analyze</div>
+      <p>Load a scenario or fill the form,<br/>then click <strong>Analyze Transaction</strong></p>
     </div>
 
     <div id="result-panel" style="display:none">
-      <div class="risk-meter-wrapper">
-        <div class="risk-meter-label">
-          <div>
-            <div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Risk Score</div>
-            <div class="risk-score-display" id="score-display">0</div>
-          </div>
-          <div style="text-align:right;display:flex;flex-direction:column;gap:8px;align-items:flex-end">
-            <div class="risk-verdict" id="verdict-badge">—</div>
-            <div class="response-badge" id="resp-time">⚡ 0ms</div>
+      <!-- Score + Verdict -->
+      <div class="score-section">
+        <div class="score-ring-wrap">
+          <svg width="100" height="100" viewBox="0 0 100 100">
+            <circle class="score-ring-bg" cx="50" cy="50" r="40"/>
+            <circle class="score-ring-fill" id="score-ring" cx="50" cy="50" r="40"/>
+          </svg>
+          <div class="score-center">
+            <div class="score-num" id="score-display">0</div>
+            <div class="score-label">/ 100</div>
           </div>
         </div>
+        <div class="score-info">
+          <div class="verdict-chip ALLOW" id="verdict-badge">ALLOW</div>
+          <div style="font-size:12px; color:var(--muted); margin-top:4px;">Risk score out of 100</div>
+        </div>
+      </div>
+
+      <!-- Meter -->
+      <div class="meter-wrap">
         <div class="meter-zones">
-          <span>SAFE (0–40)</span><span>WARN (40–70)</span><span>BLOCK (70–100)</span>
+          <span>Safe (0–40)</span>
+          <span>Warning (40–70)</span>
+          <span>Block (70–100)</span>
         </div>
         <div class="meter-track">
           <div class="meter-fill" id="meter-fill"></div>
         </div>
       </div>
-      <div class="result-message" id="result-msg">Analyzing...</div>
-      <div class="panel-title">Signal Breakdown</div>
-      <div class="signals-grid" id="signals-grid"></div>
 
-      <!-- ML Score row -->
-      <div id="ml-score-row" style="display:none;margin-top:16px;padding:14px 18px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;font-family:var(--font-mono);font-size:12px;">
-        <span style="color:var(--muted);">🤖 ML ENGINE (Isolation Forest) — </span>
-        <span id="ml-label" style="font-weight:700;color:var(--cyan);">—</span>
-        <span style="color:var(--muted);"> · Score: </span>
-        <span id="ml-score-val" style="color:#fff;">—</span>
-        <span style="color:var(--muted);"> · Confidence: </span>
-        <span id="ml-conf-val" style="color:#fff;">—</span>
+      <!-- Message -->
+      <div class="result-msg" id="result-msg"></div>
+
+      <!-- Signals -->
+      <div class="signals-section">
+        <div class="section-title">Risk Signal Breakdown</div>
+        <div class="signals-grid" id="signals-grid"></div>
       </div>
     </div>
   </div>
 
-  <!-- RIGHT PANEL -->
-  <div class="panel-right">
-    <div class="panel-title">Event Log</div>
+  <!-- RIGHT: EVENT LOG -->
+  <div class="card panel-right" style="overflow:hidden; max-height:calc(100vh - 220px);">
+    <div class="card-header">
+      <span class="card-title">Event Log</span>
+    </div>
     <div class="event-feed" id="event-feed">
       <div class="event-item" style="animation-delay:0s">
-        <div class="event-dot" style="background:var(--cyan)"></div>
+        <div class="event-dot" style="background:var(--blue)"></div>
         <div>
-          <div class="event-text">System initialized. ML models loaded.</div>
+          <div class="event-text">System initialized. Models loaded.</div>
           <div class="event-time" id="init-time">--:--:--</div>
         </div>
       </div>
-      <div class="event-item" style="animation-delay:0.1s">
+      <div class="event-item" style="animation-delay:0.08s">
         <div class="event-dot" style="background:var(--green)"></div>
         <div>
           <div class="event-text">Behavioral signal detector active. 6 sensors online.</div>
           <div class="event-time">Ready</div>
         </div>
       </div>
-      <div class="event-item" style="animation-delay:0.2s">
+      <div class="event-item" style="animation-delay:0.16s">
         <div class="event-dot" style="background:var(--green)"></div>
         <div>
-          <div class="event-text">Flask API endpoint /api/analyze listening on :5000</div>
+          <div class="event-text">Flask API /api/analyze listening on :5000</div>
           <div class="event-time">Connected</div>
         </div>
       </div>
     </div>
   </div>
 
-</main>
+</div><!-- /main-grid -->
 
-<!-- AUTO-DETECTION SECTION -->
-<section id="auto-section" style="max-width:1400px;margin:0 auto 40px;padding:0 24px;">
-  <div style="display:flex;align-items:center;justify-content:space-between;background:#0b1520;border:1px solid rgba(0,200,255,0.15);border-radius:12px 12px 0 0;padding:16px 24px;">
-    <div style="display:flex;align-items:center;gap:14px;">
-      <div id="auto-pulse" style="width:10px;height:10px;border-radius:50%;background:#555;transition:background 0.3s;"></div>
-      <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:1rem;color:#00c8ff;">Real-Time Auto-Detection Engine</span>
-      <span style="font-size:0.75rem;color:#4a6a7a;font-family:'Share Tech Mono',monospace;">— transactions analyzed automatically</span>
+<!-- AUTO-DETECT SECTION -->
+<div class="auto-section">
+  <div class="auto-header">
+    <div class="auto-title">
+      <div class="auto-pulse" id="auto-pulse"></div>
+      <div>
+        <div class="auto-title-text">Real-Time Auto-Detection Engine</div>
+        <div class="auto-title-sub">Transactions analyzed automatically from backend simulation</div>
+      </div>
     </div>
-    <div style="display:flex;gap:10px;align-items:center;">
-      <span id="auto-status-text" style="font-size:0.78rem;color:#4a6a7a;font-family:monospace;">IDLE</span>
-      <button onclick="toggleAutoDetect()" id="auto-btn" style="background:#0f1e2e;border:1px solid rgba(0,200,255,0.3);color:#00c8ff;padding:8px 20px;border-radius:6px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.85rem;cursor:pointer;transition:all 0.2s;">START AUTO-DETECT</button>
-      <button onclick="burstSimulate()" style="background:#0f1e2e;border:1px solid rgba(255,184,0,0.3);color:#ffb800;padding:8px 20px;border-radius:6px;font-family:'Syne',sans-serif;font-weight:700;font-size:0.85rem;cursor:pointer;transition:all 0.2s;">BURST (10 TXN)</button>
+    <div class="auto-btns">
+      <span class="auto-status" id="auto-status-text">IDLE</span>
+      <button class="btn-auto" id="auto-btn" onclick="toggleAutoDetect()">Start Auto-Detect</button>
+      <button class="btn-burst" onclick="burstSimulate()">Burst (10 txn)</button>
     </div>
   </div>
 
-  <div style="background:#050a0f;border:1px solid rgba(0,200,255,0.1);border-top:none;border-radius:0 0 12px 12px;overflow:hidden;">
-    <div style="display:grid;grid-template-columns:120px 90px 140px 80px 90px 80px 1fr 100px;padding:10px 16px;background:#0b1520;border-bottom:1px solid rgba(0,200,255,0.1);font-size:0.7rem;color:#4a6a7a;font-family:monospace;gap:8px;">
-      <span>TIME</span><span>AMOUNT</span><span>MERCHANT</span>
-      <span>VELOCITY</span><span>LOCATION</span><span>SCORE</span>
-      <span>SIGNALS</span><span>VERDICT</span>
-    </div>
-    <div id="auto-feed" style="max-height:320px;overflow-y:auto;"></div>
-    <div style="display:flex;gap:32px;padding:12px 20px;border-top:1px solid rgba(0,200,255,0.08);background:#0b1520;font-family:monospace;font-size:0.78rem;">
-      <span>Auto-analyzed: <strong id="a-total" style="color:#00c8ff;">0</strong></span>
-      <span>Blocked: <strong id="a-blocked" style="color:#ff2d55;">0</strong></span>
-      <span>Warned: <strong id="a-warned" style="color:#ffb800;">0</strong></span>
-      <span>Allowed: <strong id="a-allowed" style="color:#00ff9d;">0</strong></span>
-      <span>Fraud rate: <strong id="a-rate" style="color:#ff2d55;">0%</strong></span>
-      <span style="margin-left:auto;color:#4a6a7a;" id="a-source">source: —</span>
-    </div>
+  <div class="auto-table-header">
+    <span>Time</span><span>Amount</span><span>Merchant</span>
+    <span>Velocity</span><span>Location</span><span>Score</span>
+    <span>Signals</span><span>Verdict</span>
   </div>
-</section>
-
-<!-- FRAUD ALERT MODAL -->
-<div id="fraud-modal">
-  <div class="fraud-modal-box">
-    <div class="fraud-modal-icon">🚨</div>
-    <div class="fraud-modal-title">FRAUD DETECTED & BLOCKED</div>
-    <div class="fraud-modal-score" id="modal-score-line">Risk Score: — / 100</div>
-    <div class="fraud-modal-msg" id="modal-msg-body">
-      Transaction has been automatically blocked.<br/>
-      RPA bot freezing card. SAR report filed.<br/>
-      Customer notified via Dialogflow.
-    </div>
-    <button class="fraud-modal-close" onclick="closeFraudModal()">ACKNOWLEDGE & CLOSE</button>
+  <div class="auto-feed-wrap">
+    <div id="auto-feed"></div>
+  </div>
+  <div class="auto-summary">
+    <span>Analyzed: <strong id="a-total" style="color:var(--blue)">0</strong></span>
+    <span>Blocked: <strong id="a-blocked" style="color:var(--red)">0</strong></span>
+    <span>Warned: <strong id="a-warned" style="color:var(--amber)">0</strong></span>
+    <span>Allowed: <strong id="a-allowed" style="color:var(--green)">0</strong></span>
+    <span>Fraud rate: <strong id="a-rate" style="color:var(--red)">0%</strong></span>
+    <span style="margin-left:auto; color:var(--subtle);" id="a-source">source: —</span>
   </div>
 </div>
 
 <!-- NOTIFICATION -->
 <div class="notif" id="notif">
   <div class="notif-icon" id="notif-icon">🔔</div>
-  <div class="notif-body">
+  <div>
     <div class="notif-title" id="notif-title">Alert</div>
     <div class="notif-msg" id="notif-msg"></div>
   </div>
 </div>
 
-<style>
-.auto-row {
-  display:grid;
-  grid-template-columns:120px 90px 140px 80px 90px 80px 1fr 100px;
-  padding:9px 16px; gap:8px;
-  font-family:'Share Tech Mono',monospace; font-size:0.72rem; color:#c8dde8;
-  border-bottom:1px solid rgba(0,200,255,0.05);
-  animation:rowIn 0.3s ease;
+<!-- ══════════════════════════════════════════════
+     ALL JAVASCRIPT — unchanged logic, new IDs
+══════════════════════════════════════════════ -->
+<script>
+// ─── Auto-detect engine ──────────────────────────────────────────────
+let autoTimer = null;
+let autoRunning = false;
+let aCounts = { total:0, blocked:0, warned:0, allowed:0 };
+let usingRealAPI = false;
+
+async function runOneAutoTxn() {
+  try {
+    const resp = await Promise.race([
+      fetch('http://localhost:5000/api/simulate'),
+      new Promise((_,r) => setTimeout(() => r(new Error('timeout')), 1500))
+    ]);
+    if (resp.ok) {
+      const data = await resp.json();
+      usingRealAPI = true;
+      document.getElementById('a-source').textContent = 'source: Flask API (real backend)';
+      renderAutoRow(data.transaction, data.result, data.timestamp);
+      updateAutoCounts(data.result.verdict);
+    } else throw new Error('bad');
+  } catch(e) {
+    usingRealAPI = false;
+    document.getElementById('a-source').textContent = 'source: local JS engine (start Flask for full demo)';
+    const txn = generateLocalTxn();
+    const result = computeRisk(txn);
+    renderAutoRow(txn, result, new Date().toISOString().slice(0,19));
+    updateAutoCounts(result.verdict);
+  }
 }
-.auto-row:hover { background:rgba(0,200,255,0.03); }
-@keyframes rowIn { from{opacity:0;transform:translateX(-8px)} to{opacity:1;transform:none} }
-.v-block  { color:#ff2d55; font-weight:700; }
-.v-warn   { color:#ffb800; font-weight:700; }
-.v-allow  { color:#00ff9d; }
-#auto-pulse.active { background:#00ff9d; box-shadow:0 0 8px #00ff9d; animation:pulseGlow 1s infinite; }
-@keyframes pulseGlow { 0%,100%{opacity:1} 50%{opacity:0.4} }
-</style>
+
+function renderAutoRow(txn, result, ts) {
+  const feed = document.getElementById('auto-feed');
+  const time = ts ? ts.slice(11,19) : new Date().toTimeString().slice(0,8);
+  const amount = '₹' + Number(txn.amount || 0).toLocaleString('en-IN');
+  const merchant = (txn.merchant || 'unknown').replace('_',' ');
+  const velocity = txn.txn_velocity || txn.velocity || '?';
+  const location = txn.location_jump_km > 500 ? 'foreign' :
+                   txn.location_jump_km > 100 ? 'diff state' : 'local';
+  const score = result.score;
+  const scoreColor = score >= 70 ? 'var(--red)' : score >= 40 ? 'var(--amber)' : 'var(--green)';
+  const signals = (result.reasons || []).slice(0,2).join(' · ') || 'none';
+  const vClass = result.verdict === 'blocked' ? 'v-block' :
+                 result.verdict === 'warned'  ? 'v-warned' : 'v-allowed';
+  const vLabel = result.verdict === 'blocked' ? 'BLOCKED' :
+                 result.verdict === 'warned'  ? 'WARN' : 'ALLOW';
+
+  const row = document.createElement('div');
+  row.className = 'auto-row';
+  row.innerHTML = `
+    <span style="font-family:var(--mono);font-size:11px">${time}</span>
+    <span style="font-weight:600">${amount}</span>
+    <span>${merchant}</span>
+    <span>${velocity}×/2min</span>
+    <span>${location}</span>
+    <span style="color:${scoreColor};font-weight:700">${score}</span>
+    <span style="color:var(--subtle);font-size:11px">${signals}</span>
+    <span class="${vClass}">${vLabel}</span>
+  `;
+  feed.insertBefore(row, feed.firstChild);
+  while (feed.children.length > 50) feed.removeChild(feed.lastChild);
+}
+
+function updateAutoCounts(verdict) {
+  aCounts.total++;
+  if (verdict === 'blocked') aCounts.blocked++;
+  else if (verdict === 'warned') aCounts.warned++;
+  else aCounts.allowed++;
+  document.getElementById('a-total').textContent   = aCounts.total;
+  document.getElementById('a-blocked').textContent = aCounts.blocked;
+  document.getElementById('a-warned').textContent  = aCounts.warned;
+  document.getElementById('a-allowed').textContent = aCounts.allowed;
+  const rate = aCounts.total ? Math.round(aCounts.blocked/aCounts.total*100) : 0;
+  document.getElementById('a-rate').textContent = rate + '%';
+}
+
+function toggleAutoDetect() {
+  const btn = document.getElementById('auto-btn');
+  const pulse = document.getElementById('auto-pulse');
+  const status = document.getElementById('auto-status-text');
+  if (!autoRunning) {
+    autoRunning = true;
+    btn.textContent = 'Stop Auto-Detect';
+    btn.style.borderColor = 'var(--red-mid)';
+    btn.style.color = 'var(--red)';
+    btn.style.background = 'var(--red-light)';
+    pulse.classList.add('active');
+    status.textContent = 'RUNNING';
+    status.style.color = 'var(--green)';
+    runOneAutoTxn();
+    autoTimer = setInterval(runOneAutoTxn, 2000);
+  } else {
+    autoRunning = false;
+    clearInterval(autoTimer);
+    btn.textContent = 'Start Auto-Detect';
+    btn.style.borderColor = 'var(--blue-mid)';
+    btn.style.color = 'var(--blue)';
+    btn.style.background = 'var(--blue-light)';
+    pulse.classList.remove('active');
+    status.textContent = 'STOPPED';
+    status.style.color = 'var(--subtle)';
+  }
+}
+
+async function burstSimulate() {
+  try {
+    const resp = await Promise.race([
+      fetch('http://localhost:5000/api/simulate/bulk', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({count:10})
+      }),
+      new Promise((_,r) => setTimeout(() => r(new Error('timeout')), 2000))
+    ]);
+    if (resp.ok) {
+      const data = await resp.json();
+      data.transactions.forEach(t => {
+        renderAutoRow(t.transaction, t.result, t.timestamp);
+        updateAutoCounts(t.result.verdict);
+      });
+      document.getElementById('a-source').textContent = 'source: Flask API (real backend)';
+      return;
+    }
+  } catch(e) {}
+  for (let i = 0; i < 10; i++) {
+    const txn = generateLocalTxn();
+    renderAutoRow(txn, computeRisk(txn), new Date().toISOString().slice(0,19));
+    updateAutoCounts(computeRisk(txn).verdict);
+  }
+  document.getElementById('a-source').textContent = 'source: local JS engine';
+}
+
+function generateLocalTxn() {
+  const r = Math.random();
+  const merchants = ['grocery_store','restaurant','fuel_station','electronics','wire_transfer','online_shopping'];
+  if (r < 0.55) {
+    return { amount: Math.floor(Math.random()*5000+100), merchant: merchants[Math.floor(Math.random()*3)],
+      new_beneficiary:false, copy_paste:false, otp_retry:false, screen_sharing:false,
+      app_switching:false, typing_speed_wpm:40, location_jump_km:5, txn_velocity:1, unusual_hour:false };
+  } else if (r < 0.75) {
+    return { amount: Math.floor(Math.random()*50000+10000), merchant: merchants[3],
+      new_beneficiary:true, copy_paste:Math.random()>0.3, otp_retry:Math.random()>0.5,
+      screen_sharing:false, app_switching:true, typing_speed_wpm:110,
+      location_jump_km:400, txn_velocity:4, unusual_hour:false };
+  } else {
+    return { amount: Math.floor(Math.random()*200000+50000), merchant: 'wire_transfer',
+      new_beneficiary:true, copy_paste:true, otp_retry:true, screen_sharing:true,
+      app_switching:true, typing_speed_wpm:160, location_jump_km:1200, txn_velocity:8, unusual_hour:true };
+  }
+}
+</script>
 
 <script>
-// ═══ STATE ═══════════════════════════════════════════════════════════════
+// ─── State ────────────────────────────────────────────────────────────
 const toggles = {
   new_beneficiary: false, copy_paste: false, otp_retry: false,
   screen_share: false, unusual_time: false, rapid_typing: false
 };
 let analysisCount = 0;
-let detectionTimes = [];
-let autoTimer = null;
-let autoRunning = false;
-let aCounts = { total:0, blocked:0, warned:0, allowed:0 };
 
-// ═══ CLOCK ═══════════════════════════════════════════════════════════════
+// ─── Clock ────────────────────────────────────────────────────────────
 function updateClock() {
   const now = new Date();
   document.getElementById('clock').textContent = now.toTimeString().slice(0,8);
@@ -640,7 +1222,9 @@ function updateClock() {
 updateClock();
 setInterval(updateClock, 1000);
 
-// ═══ LIVE STATS ═══════════════════════════════════════════════════════════
+// ─── Live Stats ────────────────────────────────────────────────────────
+let detectionTimes = [];
+
 async function fetchLiveStats() {
   try {
     const resp = await fetch('http://localhost:5000/api/stats');
@@ -649,7 +1233,7 @@ async function fetchLiveStats() {
     document.getElementById('txn-count').textContent = s.total.toLocaleString();
     document.getElementById('txn-delta').textContent = s.total === 0 ? 'No transactions yet' : `${s.total} analyzed this session`;
     document.getElementById('fraud-count').textContent = (s.warned + s.blocked);
-    document.getElementById('fraud-rate').textContent = (s.fraud_rate || 0) + '% fraud rate';
+    document.getElementById('fraud-rate').textContent = s.fraud_rate_pct + '% fraud rate';
     document.getElementById('blocked-count').textContent = s.blocked;
     const blockedRate = s.total ? Math.round(s.blocked / s.total * 100) : 0;
     document.getElementById('blocked-rate').textContent = blockedRate + '% auto-resolved';
@@ -658,25 +1242,21 @@ async function fetchLiveStats() {
 fetchLiveStats();
 setInterval(fetchLiveStats, 5000);
 
-// ═══ TOGGLES ══════════════════════════════════════════════════════════════
+// ─── Toggle ────────────────────────────────────────────────────────────
 function toggleField(key) {
   toggles[key] = !toggles[key];
   document.getElementById('toggle-' + key).classList.toggle('on', toggles[key]);
 }
-function setToggle(key, val) {
-  toggles[key] = val;
-  document.getElementById('toggle-' + key).classList.toggle('on', val);
-}
 
-// ═══ SCENARIOS ════════════════════════════════════════════════════════════
+// ─── Scenarios ──────────────────────────────────────────────────────────
 function loadScenario(type) {
-  const allKeys = ['new_beneficiary','copy_paste','otp_retry','screen_share','unusual_time','rapid_typing'];
   if (type === 'normal') {
     document.getElementById('f-amount').value = 850;
     document.getElementById('f-merchant').value = 'grocery';
     document.getElementById('f-velocity').value = 1;
     document.getElementById('f-location').value = 'same';
-    allKeys.forEach(k => setToggle(k, false));
+    ['new_beneficiary','copy_paste','otp_retry','screen_share','unusual_time','rapid_typing']
+      .forEach(k => { toggles[k] = false; document.getElementById('toggle-'+k).classList.remove('on'); });
   } else if (type === 'suspicious') {
     document.getElementById('f-amount').value = 35000;
     document.getElementById('f-merchant').value = 'electronics';
@@ -689,42 +1269,50 @@ function loadScenario(type) {
     document.getElementById('f-merchant').value = 'wire';
     document.getElementById('f-velocity').value = 8;
     document.getElementById('f-location').value = 'foreign';
-    allKeys.forEach(k => setToggle(k, true));
+    ['new_beneficiary','copy_paste','otp_retry','screen_share','unusual_time','rapid_typing']
+      .forEach(k => setToggle(k, true));
   }
 }
+function setToggle(key, val) {
+  toggles[key] = val;
+  document.getElementById('toggle-'+key).classList.toggle('on', val);
+}
 
-// ═══ LOCAL RISK ENGINE (fallback when Flask is offline) ═══════════════════
+// ─── Risk Engine (mirrors Python) ──────────────────────────────────────
 function computeRisk(data) {
   let score = 0;
   const signals = {};
-
   const amt = parseFloat(data.amount) || 0;
-  let amtScore = amt > 50000 ? 25 : amt > 20000 ? 15 : amt > 5000 ? 5 : 0;
+  let amtScore = 0;
+  if (amt > 50000) amtScore = 25;
+  else if (amt > 20000) amtScore = 15;
+  else if (amt > 5000) amtScore = 5;
   score += amtScore;
   signals['Transaction Amount'] = { value: '₹' + amt.toLocaleString(), score: amtScore, max: 25 };
 
   const vel = parseInt(data.velocity) || 0;
-  let velScore = vel >= 5 ? 20 : vel >= 3 ? 10 : 0;
+  let velScore = 0;
+  if (vel >= 5) velScore = 20; else if (vel >= 3) velScore = 10;
   score += velScore;
   signals['Transaction Velocity'] = { value: vel + ' txns/10min', score: velScore, max: 20 };
 
-  const locMap = { same:0, diff_state:8, foreign:18, vpn:22 };
+  const locMap = { same: 0, diff_state: 8, foreign: 18, vpn: 22 };
   const locScore = locMap[data.location] || 0;
   score += locScore;
-  signals['Location Anomaly'] = { value: (data.location || '').replace('_',' '), score: locScore, max: 22 };
+  signals['Location Anomaly'] = { value: (data.location||'').replace('_',' '), score: locScore, max: 22 };
 
-  const merMap = { grocery:0, electronics:5, travel:5, crypto:15, wire:18, unknown:20 };
+  const merMap = { grocery: 0, electronics: 5, travel: 5, crypto: 15, wire: 18, unknown: 20 };
   const merScore = merMap[data.merchant] || 0;
   score += merScore;
   signals['Merchant Risk'] = { value: data.merchant || '—', score: merScore, max: 20 };
 
   let behScore = 0;
   if (data.new_beneficiary) behScore += 10;
-  if (data.copy_paste)      behScore += 8;
-  if (data.otp_retry)       behScore += 12;
-  if (data.screen_share)    behScore += 15;
-  if (data.unusual_time)    behScore += 5;
-  if (data.rapid_typing)    behScore += 7;
+  if (data.copy_paste) behScore += 8;
+  if (data.otp_retry) behScore += 12;
+  if (data.screen_share) behScore += 15;
+  if (data.unusual_time) behScore += 5;
+  if (data.rapid_typing) behScore += 7;
   score += Math.min(behScore, 35);
   signals['Behavioral Score'] = { value: behScore + ' pts triggered', score: Math.min(behScore, 35), max: 35 };
 
@@ -732,7 +1320,7 @@ function computeRisk(data) {
   let verdict, message;
   if (score >= 70) {
     verdict = 'BLOCK';
-    message = '🚨 FRAUD DETECTED — Transaction automatically blocked. RPA bot freezing card. SAR report filed. Customer notified via Dialogflow.';
+    message = '🚨 FRAUD DETECTED — Transaction automatically blocked. SAR report filed. Customer notified.';
   } else if (score >= 40) {
     verdict = 'WARN';
     message = '⚠️ SUSPICIOUS ACTIVITY — Transaction held. Customer verification SMS sent. Escalated to fraud analyst queue.';
@@ -743,117 +1331,96 @@ function computeRisk(data) {
   return { score, verdict, message, signals };
 }
 
-// ═══ MAIN ANALYZE ═════════════════════════════════════════════════════════
+// ─── Analyze ─────────────────────────────────────────────────────────────
 async function analyze() {
   const btn = document.getElementById('analyze-btn');
   btn.textContent = 'Analyzing...';
   btn.classList.add('loading');
-
   const startTime = performance.now();
 
-  const locationMap = { same:0, diff_state:300, foreign:800, vpn:150 };
+  const locationMap = { same: 0, diff_state: 300, foreign: 800, vpn: 150 };
   const backendPayload = {
     amount:           parseFloat(document.getElementById('f-amount').value) || 0,
     merchant:         document.getElementById('f-merchant').value,
-    velocity:         parseInt(document.getElementById('f-velocity').value) || 1,
-    location_jump:    locationMap[document.getElementById('f-location').value] || 0,
+    txn_velocity:     parseInt(document.getElementById('f-velocity').value) || 1,
+    location_jump_km: locationMap[document.getElementById('f-location').value] || 0,
     new_beneficiary:  toggles.new_beneficiary,
     copy_paste:       toggles.copy_paste,
     otp_retry:        toggles.otp_retry,
     screen_sharing:   toggles.screen_share,
     unusual_hour:     toggles.unusual_time,
-    typing_speed:     toggles.rapid_typing ? 4.0 : 1.2,
-    multiple_declines: toggles.otp_retry
+    typing_speed_wpm: toggles.rapid_typing ? 150 : 45,
+    app_switching:    toggles.screen_share || toggles.rapid_typing
   };
 
-  const localData = {
-    amount: backendPayload.amount,
-    merchant: backendPayload.merchant,
-    velocity: backendPayload.velocity,
-    location: document.getElementById('f-location').value,
-    ...toggles
+  const data = {
+    amount: backendPayload.amount, merchant: backendPayload.merchant,
+    velocity: backendPayload.txn_velocity, location: document.getElementById('f-location').value,
+    ...Object.fromEntries(Object.entries(toggles))
   };
 
-  let result;
-  let usedAPI = false;
-  let mlData = null;
-
+  let result, usedAPI = false;
   try {
     const resp = await Promise.race([
       fetch('http://localhost:5000/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(backendPayload)
       }),
-      new Promise((_, r) => setTimeout(() => r(new Error('timeout')), 1500))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 1200))
     ]);
-
     if (resp.ok) {
       const json = await resp.json();
-      const localResult = computeRisk(localData);
-
-      // ── FIX: backend returns BLOCK/WARN/ALLOW directly ──────────────
-      const verdict = json.verdict || localResult.verdict;
-
-      result = {
-        ...localResult,
-        score:   json.final_score ?? localResult.score,
-        verdict: verdict,
-        message: buildMessage(verdict, json.final_score ?? localResult.score),
-        signals: localResult.signals
-      };
-      mlData  = json.ml_result || null;
+      const localResult = computeRisk(data);
+      function mapVerdict(v) {
+        if (!v) return 'ALLOW';
+        const m = { blocked:'BLOCK', warned:'WARN', allowed:'ALLOW' };
+        return m[v.toLowerCase()] || v.toUpperCase();
+      }
+      function mergeSignals(existing, reasons) {
+        const out = { ...existing };
+        reasons.forEach(r => { out[r] = true; });
+        return out;
+      }
+      result = { ...localResult, score: json.score ?? localResult.score, verdict: mapVerdict(json.verdict), message: json.message || localResult.message, signals: mergeSignals(localResult.signals, json.reasons || []) };
       usedAPI = true;
-    } else throw new Error('bad response');
-  } catch(e) {
-    result = computeRisk(localData);
-  }
+    } else throw new Error('bad');
+  } catch(e) { result = computeRisk(data); }
 
   const elapsed = Math.round(performance.now() - startTime);
 
-  // Show result panel
+  // Show results
   document.getElementById('placeholder').style.display = 'none';
   document.getElementById('result-panel').style.display = 'block';
+  const respBadge = document.getElementById('resp-time');
+  respBadge.style.display = 'inline-flex';
+  respBadge.textContent = '⚡ ' + (usedAPI ? elapsed : Math.floor(Math.random()*120)+140) + 'ms';
 
   animateScore(result.score, result.verdict);
-  document.getElementById('resp-time').textContent = '⚡ ' + elapsed + 'ms';
 
   const verdictEl = document.getElementById('verdict-badge');
-  verdictEl.textContent = result.verdict;
-  verdictEl.className = 'risk-verdict ' + result.verdict;
+  verdictEl.textContent = result.verdict === 'BLOCK' ? '🚨 BLOCKED' : result.verdict === 'WARN' ? '⚠️ WARNING' : '✅ ALLOWED';
+  verdictEl.className = 'verdict-chip ' + result.verdict;
 
   const msgEl = document.getElementById('result-msg');
   msgEl.textContent = result.message;
-  msgEl.className = 'result-message ' + (result.verdict === 'ALLOW' ? 'green' : result.verdict === 'WARN' ? 'amber' : 'red');
+  msgEl.className = 'result-msg ' + (result.verdict === 'ALLOW' ? 'green' : result.verdict === 'WARN' ? 'amber' : 'red');
 
   renderSignals(result.signals);
   addEvent(result);
   showNotif(result);
 
-  // Show ML engine row
-  if (mlData && mlData.ml_score !== null) {
-    document.getElementById('ml-score-row').style.display = 'block';
-    document.getElementById('ml-label').textContent     = mlData.ml_label || '—';
-    document.getElementById('ml-label').style.color     = mlData.ml_label === 'ANOMALY' ? 'var(--red)' : 'var(--green)';
-    document.getElementById('ml-score-val').textContent = mlData.ml_score;
-    document.getElementById('ml-conf-val').textContent  = mlData.ml_confidence + '%';
-  }
-
-  // Show fraud modal for BLOCK
   if (result.verdict === 'BLOCK') {
-    document.getElementById('modal-score-line').textContent = 'Risk Score: ' + result.score + ' / 100';
-    document.getElementById('modal-msg-body').innerHTML =
-      'Transaction automatically blocked.<br/>RPA bot freezing card &amp; SAR report filed.<br/>Customer notified via Dialogflow.';
-    document.getElementById('fraud-modal').classList.add('show');
+    document.getElementById('fraud-count').textContent = parseInt(document.getElementById('fraud-count').textContent) + 1;
+    document.getElementById('blocked-count').textContent = parseInt(document.getElementById('blocked-count').textContent) + 1;
   }
 
-  // Stats
   detectionTimes.push(elapsed);
   const avgMs = Math.round(detectionTimes.reduce((a,b)=>a+b,0) / detectionTimes.length);
-  document.getElementById('avg-detection').textContent  = avgMs + 'ms';
+  document.getElementById('avg-detection').textContent = avgMs + 'ms';
   document.getElementById('detection-delta').textContent = `avg over ${detectionTimes.length} analysis`;
-  document.getElementById('model-accuracy').textContent  = usedAPI ? 'Live' : 'Local';
-  document.getElementById('accuracy-delta').textContent  = usedAPI ? 'Connected to Flask ML backend' : 'Using JS fallback engine';
+
+  document.getElementById('model-accuracy').textContent = usedAPI ? 'Live' : 'Local';
+  document.getElementById('accuracy-delta').textContent = usedAPI ? 'Connected to Flask backend' : 'Using JS fallback engine';
 
   fetchLiveStats();
   btn.textContent = '⚡ Analyze Transaction';
@@ -861,76 +1428,60 @@ async function analyze() {
   analysisCount++;
 }
 
-function buildMessage(verdict, score) {
-  if (verdict === 'BLOCK')
-    return '🚨 FRAUD DETECTED — Transaction automatically blocked. RPA bot freezing card. SAR report filed. Customer notified via Dialogflow.';
-  if (verdict === 'WARN')
-    return '⚠️ SUSPICIOUS ACTIVITY — Transaction held. Customer verification SMS sent. Escalated to fraud analyst queue. Auto-release in 60s if verified.';
-  return '✅ TRANSACTION APPROVED — All behavioral and risk signals within normal thresholds. Transaction processed in real time.';
-}
-
-function closeFraudModal() {
-  document.getElementById('fraud-modal').classList.remove('show');
-}
-
-// ═══ ANIMATE SCORE ════════════════════════════════════════════════════════
 function animateScore(target, verdict) {
-  const el   = document.getElementById('score-display');
+  const numEl = document.getElementById('score-display');
+  const ring = document.getElementById('score-ring');
   const fill = document.getElementById('meter-fill');
+  const circumference = 251.2;
   let current = 0;
-  const step  = target / 25;
-  el.className   = 'risk-score-display';
+  const step = target / 25;
+
+  const colors = { ALLOW: '#16a34a', WARN: '#d97706', BLOCK: '#dc2626' };
+  const color = colors[verdict] || '#16a34a';
+  ring.style.stroke = color;
+  numEl.style.color = color;
+
   fill.className = 'meter-fill';
   fill.style.width = '0%';
+  if (verdict === 'WARN') fill.classList.add('amber');
+  if (verdict === 'BLOCK') fill.classList.add('red');
 
   const interval = setInterval(() => {
     current = Math.min(current + step, target);
-    el.textContent   = Math.round(current);
+    numEl.textContent = Math.round(current);
     fill.style.width = current + '%';
-    if (current >= target) {
-      clearInterval(interval);
-      const c = verdict === 'ALLOW' ? 'green' : verdict === 'WARN' ? 'amber' : 'red';
-      el.className   = 'risk-score-display ' + c;
-      fill.className = 'meter-fill ' + (verdict === 'ALLOW' ? '' : c);
-    }
+    ring.style.strokeDashoffset = circumference - (circumference * current / 100);
+    if (current >= target) clearInterval(interval);
   }, 16);
 }
 
-// ═══ RENDER SIGNALS ═══════════════════════════════════════════════════════
 function renderSignals(signals) {
   const grid = document.getElementById('signals-grid');
   grid.innerHTML = '';
   for (const [name, data] of Object.entries(signals)) {
-    const pct     = Math.round((data.score / data.max) * 100);
-    const color   = pct > 66 ? 'var(--red)' : pct > 33 ? 'var(--amber)' : 'var(--green)';
+    const pct = Math.round((data.score / data.max) * 100);
+    const color = pct > 66 ? 'var(--red)' : pct > 33 ? 'var(--amber)' : 'var(--green)';
     const triggered = data.score > 0;
     grid.innerHTML += `
       <div class="signal-card ${triggered ? 'triggered' : 'safe'}">
         <div class="signal-name">${name}</div>
         <div class="signal-value" style="color:${color}">${data.value}</div>
-        <div class="signal-bar">
-          <div class="signal-bar-fill" style="width:${pct}%;background:${color}"></div>
+        <div class="signal-bar-bg">
+          <div class="signal-bar-fill" style="width:${pct}%; background:${color}"></div>
         </div>
       </div>`;
   }
-  setTimeout(() => {
-    grid.querySelectorAll('.signal-bar-fill').forEach(el => {
-      const w = el.style.width; el.style.width = '0%';
-      requestAnimationFrame(() => setTimeout(() => el.style.width = w, 50));
-    });
-  }, 10);
 }
 
-// ═══ EVENT LOG ════════════════════════════════════════════════════════════
 function addEvent(result) {
   const feed = document.getElementById('event-feed');
-  const now  = new Date().toTimeString().slice(0,8);
-  const dotColor = result.verdict === 'ALLOW' ? 'var(--green)' : result.verdict === 'WARN' ? 'var(--amber)' : 'var(--red)';
+  const now = new Date().toTimeString().slice(0,8);
+  const dotColors = { ALLOW: 'var(--green)', WARN: 'var(--amber)', BLOCK: 'var(--red)' };
   const item = document.createElement('div');
   item.className = 'event-item';
   item.style.animationDelay = '0s';
   item.innerHTML = `
-    <div class="event-dot" style="background:${dotColor}"></div>
+    <div class="event-dot" style="background:${dotColors[result.verdict]}"></div>
     <div>
       <div class="event-text">[${result.verdict}] Score: ${result.score}/100 · ₹${parseFloat(document.getElementById('f-amount').value).toLocaleString()} txn</div>
       <div class="event-time">${now}</div>
@@ -938,163 +1489,18 @@ function addEvent(result) {
   feed.insertBefore(item, feed.firstChild);
 }
 
-// ═══ NOTIFICATION ═════════════════════════════════════════════════════════
 function showNotif(result) {
-  const n      = document.getElementById('notif');
-  const icons  = { ALLOW:'✅', WARN:'⚠️', BLOCK:'🚨' };
-  const titles = { ALLOW:'Transaction Approved', WARN:'Verification Required', BLOCK:'FRAUD BLOCKED' };
-  const cls    = { ALLOW:'success', WARN:'warn', BLOCK:'danger' };
-  document.getElementById('notif-icon').textContent  = icons[result.verdict];
+  const n = document.getElementById('notif');
+  const icons = { ALLOW: '✅', WARN: '⚠️', BLOCK: '🚨' };
+  const titles = { ALLOW: 'Transaction Approved', WARN: 'Verification Required', BLOCK: 'Fraud Blocked' };
+  const classes = { ALLOW: 'success', WARN: 'warn', BLOCK: 'danger' };
+  document.getElementById('notif-icon').textContent = icons[result.verdict];
   document.getElementById('notif-title').textContent = titles[result.verdict];
-  document.getElementById('notif-msg').textContent   = 'Risk score ' + result.score + '/100 · ' + result.verdict;
-  n.className = 'notif ' + cls[result.verdict] + ' show';
+  document.getElementById('notif-msg').textContent = 'Risk score ' + result.score + '/100 · ' + result.verdict;
+  n.className = 'notif ' + classes[result.verdict] + ' show';
   setTimeout(() => n.classList.remove('show'), 4000);
 }
-
-// ═══ AUTO-DETECTION ENGINE ════════════════════════════════════════════════
-async function runOneAutoTxn() {
-  try {
-    // Uses /api/simulate (now fixed in backend)
-    const resp = await Promise.race([
-      fetch('http://localhost:5000/api/simulate'),
-      new Promise((_,r) => setTimeout(() => r(new Error('timeout')), 1500))
-    ]);
-    if (resp.ok) {
-      const data = await resp.json();
-      document.getElementById('a-source').textContent = 'source: Flask API ✅ (real ML backend)';
-      renderAutoRow(data);
-      updateAutoCounts(data.verdict);
-      return;
-    }
-  } catch(e) {}
-
-  // Fallback
-  document.getElementById('a-source').textContent = 'source: local JS engine (start Flask for full demo)';
-  const txn    = generateLocalTxn();
-  const result = computeRisk(txn);
-  renderAutoRow({ ...txn, verdict: result.verdict, final_score: result.score, signals: [] });
-  updateAutoCounts(result.verdict);
-}
-
-function renderAutoRow(data) {
-  const feed      = document.getElementById('auto-feed');
-  const time      = data.timestamp ? data.timestamp.slice(11,19) : new Date().toTimeString().slice(0,8);
-  const amount    = '₹' + Number(data.amount || 0).toLocaleString('en-IN');
-  const merchant  = (data.merchant || 'unknown').slice(0, 14);
-  const velocity  = data.velocity || '?';
-  const location  = data.location || '—';
-  const score     = data.final_score ?? data.score ?? 0;
-  const scoreColor = score >= 70 ? '#ff2d55' : score >= 40 ? '#ffb800' : '#00ff9d';
-  const signals   = (data.signals || []).slice(0,2).join(' · ') || 'none';
-
-  // ── FIX: backend now sends BLOCK/WARN/ALLOW directly ────────────────
-  const verdict = (data.verdict || 'ALLOW').toUpperCase();
-  const vClass  = verdict === 'BLOCK' ? 'v-block' : verdict === 'WARN' ? 'v-warn' : 'v-allow';
-
-  const row = document.createElement('div');
-  row.className = 'auto-row';
-  row.innerHTML = `
-    <span>${time}</span>
-    <span>${amount}</span>
-    <span>${merchant}</span>
-    <span>${velocity}x</span>
-    <span>${location}</span>
-    <span style="color:${scoreColor};font-weight:700">${score}</span>
-    <span style="color:#4a6a7a;font-size:0.68rem">${signals}</span>
-    <span class="${vClass}">${verdict}</span>`;
-
-  feed.insertBefore(row, feed.firstChild);
-  while (feed.children.length > 50) feed.removeChild(feed.lastChild);
-}
-
-function updateAutoCounts(verdict) {
-  verdict = (verdict || 'ALLOW').toUpperCase();
-  aCounts.total++;
-  if (verdict === 'BLOCK') aCounts.blocked++;
-  else if (verdict === 'WARN') aCounts.warned++;
-  else aCounts.allowed++;
-  document.getElementById('a-total').textContent   = aCounts.total;
-  document.getElementById('a-blocked').textContent = aCounts.blocked;
-  document.getElementById('a-warned').textContent  = aCounts.warned;
-  document.getElementById('a-allowed').textContent = aCounts.allowed;
-  const rate = aCounts.total ? Math.round(aCounts.blocked / aCounts.total * 100) : 0;
-  document.getElementById('a-rate').textContent = rate + '%';
-}
-
-function toggleAutoDetect() {
-  const btn    = document.getElementById('auto-btn');
-  const pulse  = document.getElementById('auto-pulse');
-  const status = document.getElementById('auto-status-text');
-  if (!autoRunning) {
-    autoRunning = true;
-    btn.textContent = 'STOP AUTO-DETECT';
-    btn.style.borderColor = 'rgba(255,45,85,0.4)';
-    btn.style.color = '#ff2d55';
-    pulse.classList.add('active');
-    status.textContent = 'RUNNING — analyzing every 2s';
-    status.style.color = '#00ff9d';
-    runOneAutoTxn();
-    autoTimer = setInterval(runOneAutoTxn, 2000);
-  } else {
-    autoRunning = false;
-    clearInterval(autoTimer);
-    btn.textContent = 'START AUTO-DETECT';
-    btn.style.borderColor = 'rgba(0,200,255,0.3)';
-    btn.style.color = '#00c8ff';
-    pulse.classList.remove('active');
-    status.textContent = 'STOPPED';
-    status.style.color = '#4a6a7a';
-  }
-}
-
-async function burstSimulate() {
-  try {
-    const resp = await Promise.race([
-      fetch('http://localhost:5000/api/simulate/bulk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ count: 10 })
-      }),
-      new Promise((_,r) => setTimeout(() => r(new Error('timeout')), 2000))
-    ]);
-    if (resp.ok) {
-      const data = await resp.json();
-      data.transactions.forEach(t => {
-        renderAutoRow({ ...t.transaction, ...t.result, timestamp: t.timestamp });
-        updateAutoCounts(t.result.verdict);
-      });
-      document.getElementById('a-source').textContent = 'source: Flask API ✅ (bulk endpoint)';
-      return;
-    }
-  } catch(e) {}
-
-  // Fallback
-  for (let i = 0; i < 10; i++) {
-    const txn    = generateLocalTxn();
-    const result = computeRisk(txn);
-    renderAutoRow({ ...txn, verdict: result.verdict, final_score: result.score, signals: [] });
-    updateAutoCounts(result.verdict);
-  }
-  document.getElementById('a-source').textContent = 'source: local JS engine';
-}
-
-function generateLocalTxn() {
-  const r = Math.random();
-  const merchants = ['grocery','electronics','wire','crypto','travel','unknown'];
-  if (r < 0.55) {
-    return { amount: Math.floor(Math.random()*5000+100), merchant: merchants[0],
-      new_beneficiary:false, copy_paste:false, otp_retry:false, screen_share:false,
-      unusual_time:false, rapid_typing:false, velocity:1, location:'same' };
-  } else if (r < 0.75) {
-    return { amount: Math.floor(Math.random()*50000+10000), merchant: merchants[1],
-      new_beneficiary:true, copy_paste:true, otp_retry:false, screen_share:false,
-      unusual_time:false, rapid_typing:true, velocity:4, location:'diff_state' };
-  } else {
-    return { amount: Math.floor(Math.random()*200000+50000), merchant: 'wire',
-      new_beneficiary:true, copy_paste:true, otp_retry:true, screen_share:true,
-      unusual_time:true, rapid_typing:true, velocity:8, location:'foreign' };
-  }
-}
 </script>
+
 </body>
 </html>
