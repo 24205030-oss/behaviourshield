@@ -1232,8 +1232,8 @@ async function fetchLiveStats() {
     const s = await resp.json();
     document.getElementById('txn-count').textContent = s.total.toLocaleString();
     document.getElementById('txn-delta').textContent = s.total === 0 ? 'No transactions yet' : `${s.total} analyzed this session`;
-    document.getElementById('fraud-count').textContent = (s.warned + s.blocked);
-    document.getElementById('fraud-rate').textContent = s.fraud_rate_pct + '% fraud rate';
+    document.getElementById('fraud-count').textContent = ((s.review || 0) + (s.blocked || 0));
+    document.getElementById('fraud-rate').textContent = (s.fraud_rate || 0) + '% fraud rate';
     document.getElementById('blocked-count').textContent = s.blocked;
     const blockedRate = s.total ? Math.round(s.blocked / s.total * 100) : 0;
     document.getElementById('blocked-rate').textContent = blockedRate + '% auto-resolved';
