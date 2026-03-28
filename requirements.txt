@@ -1,4 +1,15 @@
+# Backend (Flask)
 flask==3.0.3
 flask-cors==4.0.1
-numpy
+
+# AI / ML — Neural Network (TensorFlow-equivalent MLP)
 scikit-learn
+numpy
+
+# Automation — PDF Fraud Report Generator (UiPath-style)
+reportlab
+
+# Cloud — deployment ready (AWS / Azure / GCP)
+# Deploy with: eb init && eb create   (AWS)
+#              az webapp up            (Azure)
+#              gcloud run deploy       (GCP)
